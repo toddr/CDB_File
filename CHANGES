@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+0.94
+    - Made work on perl 5.8.1
+    - Added some notes about performance
+
 0.93
     - Switched to allocating memory on the heap. I have no idea how the
       previous scheme worked at all. It should have fallen over everywhere.

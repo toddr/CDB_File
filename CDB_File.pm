@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.93';
+$VERSION = '0.94';
 
 =head1 NAME
 
@@ -286,6 +286,22 @@ access something that isn't a B<cdb> file.  Otherwise a serious OS level
 problem occurred, for example, you have run out of disk space.
 
 =back
+
+=head1 PERFORMANCE
+
+Sometimes you need to get the most performance possible out of a
+library. Rumour has it that perl's tie() interface is slow. In order
+to get around that you can use CDB_File in an object oriented
+fashion, rather than via tie().
+
+  my $cdb = CDB_File->TIEHASH('/path/to/cdbfile.cdb');
+
+  if ($cdb->EXISTS('key')) {
+      print "Key is: ", $cdb->FETCH('key'), "\n";
+  }
+
+For more information on the methods available on tied hashes see
+L<perltie>.
 
 =head1 BUGS
 

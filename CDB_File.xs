@@ -36,6 +36,7 @@ extern "C" {
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+#include "ppport.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -458,7 +459,7 @@ cdb_FETCH(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
+		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
 	}
 	kp = SvPV(k, klen);
@@ -503,7 +504,7 @@ cdb_multi_get(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
+		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
 	}
 	cdb_findstart(this);
@@ -536,7 +537,7 @@ cdb_EXISTS(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
+		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_NO;
 	}
 	kp = SvPV(k, klen);
@@ -598,7 +599,7 @@ cdb_NEXTKEY(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
+		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
         }
         /* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
