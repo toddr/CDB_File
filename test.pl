@@ -1,7 +1,7 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-BEGIN {print "1..34\n";}
+BEGIN {print "1..35\n";}
 END {print "not ok 1\n" unless $loaded;}
 use CDB_File;
 $loaded = 1;
@@ -116,21 +116,32 @@ $k[0] eq 'dog' and $k[1] eq 'cat' and $k[2] eq 'cat' and $k[3] eq 'dog' and $k[4
 	print 'not ';
 print "ok 23\n";
 
+@k = ();
+@v = ();
+while (($k, $v) = each %h) {
+	push @k, $k;
+	push @v, $v;
+}
+$k[0] eq 'dog' and $k[1] eq 'cat' and $k[2] eq 'cat' and $k[3] eq 'dog' and $k[4] eq 'rabbit' and
+	$v[0] eq 'perro' and $v[1] eq 'gato' and $v[2] eq 'chat' and $v[3] eq 'chien' and $v[4] eq 'conejo' or
+	print 'not ';
+print "ok 24\n";
+
 $v = $t->multi_get('cat');
 @$v == 2 and $$v[0] eq 'gato' and $$v[1] eq 'chat' or print 'not ';
-print "ok 24\n";
+print "ok 25\n";
 
 $v = $t->multi_get('dog');
 @$v == 2 and $$v[0] eq 'perro' and $$v[1] eq 'chien' or print 'not ';
-print "ok 25\n";
+print "ok 26\n";
 
 $v = $t->multi_get('rabbit');
 @$v == 1 and $$v[0] eq 'conejo' or print 'not ';
-print "ok 26\n";
+print "ok 27\n";
 
 $v = $t->multi_get('foo');
 defined @$v and print 'not ';
-print "ok 27\n";
+print "ok 28\n";
 
 # Test undefined keys.
 {
@@ -140,21 +151,21 @@ print "ok 27\n";
 	$warned = 0; 
 	$x = undef;
 	not defined $h{$x} and $warned or print 'not ';
-	print "ok 28\n";
-
-	$warned = 0;
-	not exists $h{$x} and $warned or print 'not ';
 	print "ok 29\n";
 
 	$warned = 0;
-	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	not exists $h{$x} and $warned or print 'not ';
 	print "ok 30\n";
+
+	$warned = 0;
+	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	print "ok 31\n";
 }
 
 # Check that object is readonly.
 eval { $$t = 'foo' };
 $@ =~ /^Modification of a read-only value/ and $h{'cat'} eq 'gato' or print 'not ';
-print "ok 31\n";
+print "ok 32\n";
 
 unlink 'repeat.cdb';
 
@@ -163,11 +174,11 @@ unlink 'repeat.cdb';
 CDB_File::create %a, 'good.cdb', 'good.tmp' or print "not ";
 tie %h, CDB_File, 'good.cdb' or print "not ";
 print "not " if $h{'zero'} or $h{'one'};
-print "ok 32\n";
-
-# And here's one I introduced while fixing 32 :-(.
-defined $h{'one'} or print "not ";
 print "ok 33\n";
+
+# And here's one I introduced while fixing 33 :-(.
+defined $h{'one'} or print "not ";
+print "ok 34\n";
 
 unlink 'good.cdb';
 
@@ -178,6 +189,6 @@ $h->finish or print "not ";
 tie %h, CDB_File, 't.cdb' or print "not ";
 $h{1} == 23 or print "not ";
 untie %h;
-print "ok 34\n";
+print "ok 35\n";
 
 unlink 't.cdb';

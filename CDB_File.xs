@@ -1,11 +1,24 @@
 /*
 
-Don't tell the OO Police, but...
+Most of this is reasonably straightforward.  The complications arise
+when we are "iterating" over the CDB file, that is to say, using `keys'
+or `values' or `each' to retrieve all the data in the file in order.
+This interface stores extra data to allow us to track iterations: end
+is a pointer to the end of data in the CDB file, and also a flag which
+indicates whether we are iterating or not (note that the end of data
+occurs at a position >= 2048); curkey is a copy of the current key;
+curpos is the file offset of curkey; and fetch_advance is 0 for
 
-There are actually two different objects called CDB_File.  One is
-created by TIEHASH, and accessed by the usual tied hash methods (FETCH,
-FIRSTKEY, etc.).  The other is created by new, and accessed by insert
-and finish.
+    FIRSTKEY, fetch, NEXTKEY, fetch, NEXTKEY, fetch, ...
+
+but 1 for
+
+    FIRSTKEY, NEXTKEY, NEXTKEY, ..., fetch, fetch, fetch, ...
+
+Don't tell the OO Police, but there are actually two different objects
+called CDB_File.  One is created by TIEHASH, and accessed by the usual
+tied hash methods (FETCH, FIRSTKEY, etc.).  The other is created by new,
+and accessed by insert and finish.
 
 In both cases, the object is a blessed reference to a scalar.  The
 scalar contains either a struct cdbobj or a struct cdbmakeobj.
@@ -39,7 +52,8 @@ struct cdb {
 	PerlIO *f;  /* The file descriptor. */
 	U32 end;    /* If non zero, the file offset of the first byte of hash tables. */
 	SV *curkey; /* While iterating: a copy of the current key; */
-	U32 curpos; /*                  the file offset of the current record; */
+	U32 curpos; /*                  the file offset of the current record. */
+	int fetch_advance; /* the kludge */
 	U32 size; /* initialized if map is nonzero */
 	U32 loop; /* number of hash slots searched under this key */
 	U32 khash; /* initialized if loop is nonzero */
@@ -255,6 +269,7 @@ static void iter_start(struct cdb *c) {
 	if (cdb_read(c, buf, 4, 0) == -1) readerror();
 	uint32_unpack(buf, &c->end);
 	c->curkey = NEWSV(0xcdb, 1);
+	c->fetch_advance = 0;
 }
 
 static int iter_key(struct cdb *c) {
@@ -346,8 +361,10 @@ cdb_FETCH(db, k, n = 0)
 		if (cdb_read(this, buf, 8, this->curpos) == -1) readerror();
 		uint32_unpack(buf + 4, &this->dlen);
 		this->dpos = this->curpos + 8 + klen;
-		iter_advance(this);
-		if (!iter_key(this)) iter_end(this);
+		if (this->fetch_advance) {
+			iter_advance(this);
+			if (!iter_key(this)) iter_end(this);
+		}
 		found = 1;
 	} else {
 		cdb_findstart(this);
@@ -452,6 +469,7 @@ cdb_NEXTKEY(db, k)
 	else {
 		iter_start(this);
 		(void)iter_key(this); /* prepare curkey for FETCH */
+		this->fetch_advance = 1;
 		XSRETURN_UNDEF;
 	}
 
@@ -595,7 +613,7 @@ cdb_finish(cdbmake)
 			uint32_pack(buf, this->hash[u].h);
 			uint32_pack(buf + 4, this->hash[u].p);
 			if (PerlIO_write(this->f, buf, 8) == -1) XSRETURN_UNDEF;
-			if (posplus(this, 8) == -1) return XSRETURN_UNDEF;
+			if (posplus(this, 8) == -1) XSRETURN_UNDEF;
 		}
 	}
 
