@@ -1,0 +1,17 @@
+Revision history for Perl extension CDB_File.
+
+0.04 1997-02-06
+	- iteration (FIRSTKEY, NEXTKEY) added
+	- "pre-alpha" release
+
+0.03 1997-01-28
+	- no longer dependent on cdbmake
+	- CDB_File::cdbm removed
+	- temporary file name no longer optional
+	- "pre-alpha" release
+
+0.02 1997-01-14
+	- first "pre-alpha" release
+
+0.01 1997-01-08
+	- original version; created by h2xs 1.16
