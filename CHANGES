@@ -1,5 +1,13 @@
 Revision history for Perl extension CDB_File.
 
+0.81 2000-05-12
+	- port to perl 5.6.0
+	- cdb code derived from cdb-0.75
+	- cdb code incorporated into CDB_File.xs
+	- multi_get works even for non-adjacent keys
+	- fetching values in order from previously obtained keys array works
+	- use perlapio
+
 0.8 1999-09-08
 	- fix bug with undefined keys / values (thanks CMC, JPB)
 	- beta release

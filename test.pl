@@ -1,7 +1,7 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-BEGIN {print "1..33\n";}
+BEGIN {print "1..34\n";}
 END {print "not ok 1\n" unless $loaded;}
 use CDB_File;
 $loaded = 1;
@@ -38,7 +38,8 @@ print "ok 6\n";
 tie %h, CDB_File, 'good.cdb' or print 'not ';
 print "ok 7\n";
 
-($t = tied %h) =~ /^CDB_File=SCALAR/ or print 'not ';
+$t = tied %h;
+$t->FETCH('one') eq 'Hello' or print 'not ';
 print "ok 8\n";
 
 $h{'one'} eq 'Hello' or print 'not ';
@@ -82,7 +83,7 @@ print "ok 18\n";
 unlink 'empty.cdb';
 
 # Test failing new.
-new CDB_File '.', 'cdb-0.55' and print 'not ';
+new CDB_File '..', '.' and print 'not ';
 print "ok 19\n";
 
 # Test file with repeated keys.
@@ -108,7 +109,8 @@ eval { $t->NEXTKEY('dog') };
 print 'not ' unless $@ =~ /^Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY/;
 print "ok 22\n";
 
-@k = keys %h; @v = values %h;
+@k = keys %h;
+@v = values %h;
 $k[0] eq 'dog' and $k[1] eq 'cat' and $k[2] eq 'cat' and $k[3] eq 'dog' and $k[4] eq 'rabbit' and
 	$v[0] eq 'perro' and $v[1] eq 'gato' and $v[2] eq 'chat' and $v[3] eq 'chien' and $v[4] eq 'conejo' or
 	print 'not ';
@@ -119,12 +121,16 @@ $v = $t->multi_get('cat');
 print "ok 24\n";
 
 $v = $t->multi_get('dog');
-@$v == 1 and $$v[0] eq 'perro' or print 'not ';
+@$v == 2 and $$v[0] eq 'perro' and $$v[1] eq 'chien' or print 'not ';
 print "ok 25\n";
+
+$v = $t->multi_get('rabbit');
+@$v == 1 and $$v[0] eq 'conejo' or print 'not ';
+print "ok 26\n";
 
 $v = $t->multi_get('foo');
 defined @$v and print 'not ';
-print "ok 26\n";
+print "ok 27\n";
 
 # Test undefined keys.
 {
@@ -134,21 +140,21 @@ print "ok 26\n";
 	$warned = 0; 
 	$x = undef;
 	not defined $h{$x} and $warned or print 'not ';
-	print "ok 27\n";
-
-	$warned = 0;
-	not exists $h{$x} and $warned or print 'not ';
 	print "ok 28\n";
 
 	$warned = 0;
-	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	not exists $h{$x} and $warned or print 'not ';
 	print "ok 29\n";
+
+	$warned = 0;
+	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	print "ok 30\n";
 }
 
 # Check that object is readonly.
 eval { $$t = 'foo' };
 $@ =~ /^Modification of a read-only value/ and $h{'cat'} eq 'gato' or print 'not ';
-print "ok 30\n";
+print "ok 31\n";
 
 unlink 'repeat.cdb';
 
@@ -157,11 +163,11 @@ unlink 'repeat.cdb';
 CDB_File::create %a, 'good.cdb', 'good.tmp' or print "not ";
 tie %h, CDB_File, 'good.cdb' or print "not ";
 print "not " if $h{'zero'} or $h{'one'};
-print "ok 31\n";
-
-# And here's one I introduced while fixing 31 :-(.
-defined $h{'one'} or print "not ";
 print "ok 32\n";
+
+# And here's one I introduced while fixing 32 :-(.
+defined $h{'one'} or print "not ";
+print "ok 33\n";
 
 unlink 'good.cdb';
 
@@ -172,6 +178,6 @@ $h->finish or print "not ";
 tie %h, CDB_File, 't.cdb' or print "not ";
 $h{1} == 23 or print "not ";
 untie %h;
-print "ok 33\n";
+print "ok 34\n";
 
 unlink 't.cdb';

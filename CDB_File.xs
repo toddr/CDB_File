@@ -20,14 +20,9 @@ different sizes.
 extern "C" {
 #endif
 
-#define PERLIO_NOT_STDIO 0
-
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-
-#include "cdb-0.55/cdb.h"
-#include "cdb-0.55/cdbmake.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -40,21 +35,46 @@ extern "C" {
 }
 #endif
 
-struct cdbobj {
-	int fd;        /* The file descriptor. */
-	uint32 end;    /* If non zero, the file offset of the first byte of hash tables. */
-	SV *curkey;    /* While iterating: a copy of the current key; */
-	uint32 curpos; /*                  the file offset of the current record; */
-	uint32 curlen; /*                  the length of the current data item. */
-};
+struct cdb {
+	PerlIO *f;  /* The file descriptor. */
+	U32 end;    /* If non zero, the file offset of the first byte of hash tables. */
+	SV *curkey; /* While iterating: a copy of the current key; */
+	U32 curpos; /*                  the file offset of the current record; */
+	U32 size; /* initialized if map is nonzero */
+	U32 loop; /* number of hash slots searched under this key */
+	U32 khash; /* initialized if loop is nonzero */
+	U32 kpos; /* initialized if loop is nonzero */
+	U32 hpos; /* initialized if loop is nonzero */
+	U32 hslots; /* initialized if loop is nonzero */
+	U32 dpos; /* initialized if cdb_findnext() returns 1 */
+	U32 dlen; /* initialized if cdb_findnext() returns 1 */
+} ;
 
-struct cdbmakeobj {
-	FILE *fi;            /* Handle of FILE being created. */
-	char *fn;            /* Final name of file. */
-	char *fntemp;        /* Temporary name of file. */
-	uint32 pos;          /* The current file offset. */
-	struct cdbmake cdbm; /* Stores pointer information, etc. */
-};
+#define CDB_HPLIST 1000
+
+struct cdb_hp { U32 h; U32 p; } ;
+
+struct cdb_hplist {
+	struct cdb_hp hp[CDB_HPLIST];
+	struct cdb_hplist *next;
+	int num;
+} ;
+
+struct cdb_make {
+	PerlIO *f;            /* Handle of file being created. */
+	char *fn;             /* Final name of file. */
+	char *fntemp;         /* Temporary name of file. */
+	char final[2048];
+	char bspace[1024];
+	U32 count[256];
+	U32 start[256];
+	struct cdb_hplist *head;
+	struct cdb_hp *split; /* includes space for hash */
+	struct cdb_hp *hash;
+	U32 numentries;
+	U32 pos;
+	int fd;
+} ;
 
 static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)); }
 
@@ -64,21 +84,213 @@ static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno));
 
 static void nomem() { croak("Out of memory!"); }
 
-static void format() { croak("Bad CDB_File format\n"); }
-
-static uint32 safeadd(u, v) uint32 u; uint32 v; {
-	u += v;
-	if (u < v) croak("CDB database too large\n");
-	return u;
+static int cdb_make_start(struct cdb_make *c) {
+	c->head = 0;
+	c->split = 0;
+	c->hash = 0;
+	c->numentries = 0;
+	c->pos = sizeof c->final;
+	return PerlIO_seek(c->f, c->pos, SEEK_SET);
 }
 
-static uint32 findend(fd) int fd; {
+static int posplus(struct cdb_make *c, U32 len) {
+	U32 newpos = c->pos + len;
+	if (newpos < len) { errno = ENOMEM; return -1; }
+	c->pos = newpos;
+	return 0;
+}
+
+static int cdb_make_addend(struct cdb_make *c, unsigned int keylen, unsigned int datalen, U32 h) {
+	struct cdb_hplist *head;
+
+	head = c->head;
+	if (!head || (head->num >= CDB_HPLIST)) {
+		New(0xCDB, head, 1, struct cdb_hplist);
+		head->num = 0;
+		head->next = c->head;
+		c->head = head;
+	}
+	head->hp[head->num].h = h;
+	head->hp[head->num].p = c->pos;
+	++head->num;
+	++c->numentries;
+	if (posplus(c, 8) == -1) return -1;
+	if (posplus(c, keylen) == -1) return -1;
+	if (posplus(c, datalen) == -1) return -1;
+	return 0;
+}
+
+#define CDB_HASHSTART 5381
+
+static U32 cdb_hashadd(U32 h, unsigned char c) {
+	h += (h << 5);
+	return h ^ c;
+}
+
+static U32 cdb_hash(char *buf, unsigned int len) {
+	U32 h;
+
+	h = CDB_HASHSTART;
+	while (len) {
+		h = cdb_hashadd(h,*buf++);
+		--len;
+	}
+	return h;
+}
+
+static void uint32_pack(char s[4], U32 u) {
+	s[0] = u & 255;
+	u >>= 8;
+	s[1] = u & 255;
+	u >>= 8;
+	s[2] = u & 255;
+	s[3] = u >> 8;
+}
+
+static void uint32_unpack(char s[4], U32 *u) {
+	U32 result;
+
+	result = (unsigned char) s[3];
+	result <<= 8;
+	result += (unsigned char) s[2];
+	result <<= 8;
+	result += (unsigned char) s[1];
+	result <<= 8;
+	result += (unsigned char) s[0];
+
+	*u = result;
+}
+
+static void cdb_findstart(struct cdb *c) {
+	c->loop = 0;
+}
+
+static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
+	if (PerlIO_seek(c->f, pos, SEEK_SET) == -1) return -1;
+	while (len > 0) {
+		int r;
+		do
+			r = PerlIO_read(c->f, buf, len);
+		while ((r == -1) && (errno == EINTR));
+		if (r == -1) return -1;
+		if (r == 0) {
+			errno = EPROTO;
+			return -1;
+		}
+		buf += r;
+		len -= r;
+	}
+	return 0;
+}
+
+static int match(struct cdb *c,char *key,unsigned int len, U32 pos) {
+	char buf[32];
+	int n;
+
+	while (len > 0) {
+		n = sizeof buf;
+		if (n > len) n = len;
+		if (cdb_read(c, buf, n, pos) == -1) return -1;
+		if (memcmp(buf, key, n)) return 0;
+		pos += n;
+		key += n;
+		len -= n;
+	}
+	return 1;
+}
+
+int cdb_findnext(struct cdb *c,char *key,unsigned int len) {
+	char buf[8];
+	U32 pos;
+	U32 u;
+
+  if (!c->loop) {
+    u = cdb_hash(key,len);
+    if (cdb_read(c,buf,8,(u << 3) & 2047) == -1) return -1;
+    uint32_unpack(buf + 4,&c->hslots);
+    if (!c->hslots) return 0;
+    uint32_unpack(buf,&c->hpos);
+    c->khash = u;
+    u >>= 8;
+    u %= c->hslots;
+    u <<= 3;
+    c->kpos = c->hpos + u;
+  }
+
+  while (c->loop < c->hslots) {
+    if (cdb_read(c,buf,8,c->kpos) == -1) return -1;
+    uint32_unpack(buf + 4,&pos);
+    if (!pos) return 0;
+    c->loop += 1;
+    c->kpos += 8;
+    if (c->kpos == c->hpos + (c->hslots << 3)) c->kpos = c->hpos;
+    uint32_unpack(buf,&u);
+    if (u == c->khash) {
+      if (cdb_read(c,buf,8,pos) == -1) return -1;
+      uint32_unpack(buf,&u);
+      if (u == len)
+	switch(match(c,key,len,pos + 8)) {
+	  case -1:
+	    return -1;
+	  case 1:
+	    uint32_unpack(buf + 4,&c->dlen);
+	    c->dpos = pos + 8 + len;
+	    return 1;
+	}
+    }
+  }
+
+  return 0;
+}
+
+static int cdb_find(struct cdb *c, char *key, unsigned int len) {
+  cdb_findstart(c);
+  return cdb_findnext(c,key,len);
+}
+
+static void iter_start(struct cdb *c) {
 	char buf[4];
 
-	if (lseek(fd, 0, SEEK_SET) != 0) readerror();
-	if (cdb_bread(fd, buf, 4) == -1) readerror();
-	return cdb_unpack(buf);
+	c->curpos = 2048;
+	if (cdb_read(c, buf, 4, 0) == -1) readerror();
+	uint32_unpack(buf, &c->end);
+	c->curkey = NEWSV(0xcdb, 1);
 }
+
+static int iter_key(struct cdb *c) {
+	char buf[8];
+	U32 klen;
+
+	if (c->curpos < c->end) {
+		if (cdb_read(c, buf, 8, c->curpos) == -1) readerror();
+		uint32_unpack(buf, &klen);
+		(void)SvPOK_only(c->curkey);
+		SvGROW(c->curkey, klen); SvCUR_set(c->curkey, klen);
+		if (cdb_read(c, SvPVX(c->curkey), klen, c->curpos + 8) == -1) readerror();
+		return 1;
+	}
+	return 0;
+}
+
+static void iter_advance(struct cdb *c) {
+	char buf[8];
+	U32 klen, dlen;
+
+	if (cdb_read(c, buf, 8, c->curpos) == -1) readerror();
+	uint32_unpack(buf, &klen);
+	uint32_unpack(buf + 4, &dlen);
+	c->curpos += 8 + klen + dlen;
+}
+
+static void iter_end(struct cdb *c) {
+	if (c->end != 0) {
+		c->end = 0;
+		SvREFCNT_dec(c->curkey);
+	}
+}
+
+#define cdb_datapos(c) ((c)->dpos)
+#define cdb_datalen(c) ((c)->dlen)
 
 MODULE = CDB_File		PACKAGE = CDB_File	PREFIX = cdb_
 
@@ -90,66 +302,68 @@ cdb_TIEHASH(dbtype, filename)
 	PROTOTYPE: $$
 
 	CODE:
-	struct cdbobj cdb;
+	struct cdb cdb;
 	SV *cdbp;
 
-	if ((cdb.fd = open(filename, O_RDONLY)) == -1) XSRETURN_NO;
+	cdb.f = PerlIO_open(filename, "r");
+	if (!cdb.f) XSRETURN_NO;
 	cdb.end = 0;
-	/* Copy cdb into a SV.  Potential problem: the alignment of the
-	 * SV may be wrong, leading to bus errors later when we use the
-	 * cdbobj.  Assume that everything comes from malloc(), so is
-	 * ok.
-	 */
-	cdbp = newSVpv((char *)&cdb, sizeof(struct cdbobj));
-	/* For backwards compatability with 5.002, don't use
-	 * RETVAL = newRV_noinc(...);
-	 */
-	RETVAL = newRV(cdbp);
-	SvREFCNT_dec(cdbp);
+	cdbp = newSVpv((char *)&cdb, sizeof(struct cdb));
+	RETVAL = newRV_noinc(cdbp);
 	sv_bless(RETVAL, gv_stashpv(dbtype, 0));
-	/* Prevent the user stomping on the cdbobj. */
+	/* Prevent the user stomping on the cdb. */
 	SvREADONLY_on(cdbp);
 
 	OUTPUT:
 		RETVAL
 
 SV *
-cdb_FETCH(db, k)
+cdb_FETCH(db, k, n = 0)
 	SV *		db
 	SV *		k
+	unsigned int	n
+	
+	PROTOTYPE: $$;$
 
-	PROTOTYPE: $$
-
-	CODE:
-	struct cdbobj *this;
-	uint32 dlen;
-	int fd, found;
+	PREINIT:
+	struct cdb *this;
+	PerlIO *f;
+	char buf[8];
+	int found;
 	off_t pos;
-	STRLEN klen;
+	STRLEN klen, x;
+	U32 klen0;
 	char *kp;
 
+	CODE:
 	if (!SvOK(k)) {
-		if (dowarn) warn(warn_uninit);
+		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_UNDEF;
 	}
-	this = (struct cdbobj *)SvPV(SvRV(db), na);
-	fd = this->fd; /* This micro optimization makes a measurable difference. */
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
 	kp = SvPV(k, klen);
 	if (this->end && sv_eq(this->curkey, k)) {
-		pos = this->curpos + 8 + klen;
-		if (lseek(fd, pos, SEEK_SET) != pos) seekerror();
-		dlen = this->curlen;
+		if (cdb_read(this, buf, 8, this->curpos) == -1) readerror();
+		uint32_unpack(buf + 4, &this->dlen);
+		this->dpos = this->curpos + 8 + klen;
+		iter_advance(this);
+		if (!iter_key(this)) iter_end(this);
 		found = 1;
 	} else {
-		found = cdb_seek(fd, kp, klen, &dlen);
-		if ((found != 0) && (found != 1)) readerror();
+		cdb_findstart(this);
+		do {
+			found = cdb_findnext(this, kp, klen);
+			if ((found != 0) && (found != 1)) readerror();
+		} while (found && n--);
 	}
 	ST(0) = sv_newmortal();
 	if (found && sv_upgrade(ST(0), SVt_PV)) {
+		U32 dlen = cdb_datalen(this);
+
 		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), dlen + 1); SvCUR_set(ST(0), dlen);
-		if (cdb_bread(fd, SvPVX(ST(0)), dlen) == -1) readerror();
-		SvPV(ST(0), na)[dlen] = '\0';
+		SvGROW(ST(0), dlen + 1); SvCUR_set(ST(0),  dlen);
+		if (cdb_read(this, SvPVX(ST(0)), dlen, cdb_datapos(this)) == -1) readerror();
+		SvPV(ST(0), PL_na)[dlen] = '\0';
 	}
 
 int
@@ -160,18 +374,17 @@ cdb_EXISTS(db, k)
 	PROTOTYPE: $$
 
 	CODE:
-	struct cdbobj *this;
-	uint32 dlen;
+	struct cdb *this;
 	STRLEN klen;
 	char *kp;
 
 	if (!SvOK(k)) {
-		if (dowarn) warn(warn_uninit);
+		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_NO;
 	}
-	this = (struct cdbobj *)SvPV(SvRV(db), na);
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
 	kp = SvPV(k, klen);
-	RETVAL = cdb_seek(this->fd, kp, klen, &dlen);
+	RETVAL = cdb_find(this, kp, klen);
 	if (RETVAL != 0 && RETVAL != 1) readerror();
 
 	OUTPUT:
@@ -184,15 +397,12 @@ cdb_DESTROY(db)
 	PROTOTYPE: $
 
 	CODE:
-	struct cdbobj *this;
+	struct cdb *this;
 
-	if (SvCUR(SvRV(db)) == sizeof(struct cdbobj)) { /* It came from TIEHASH. */
-		this = (struct cdbobj *)SvPV(SvRV(db), na);
-		/* I don't believe it's possible for close() on an
-		 * O_RDONLY file to fail, so the return value isn't
-		 * checked.
-		 */
-		close(this->fd);
+	if (SvCUR(SvRV(db)) == sizeof(struct cdb)) { /* It came from TIEHASH. */
+		this = (struct cdb *)SvPV(SvRV(db), PL_na);
+		iter_end(this);
+		PerlIO_close(this->f); /* close() on O_RDONLY can't fail */
 	}
 
 SV *
@@ -202,24 +412,17 @@ cdb_FIRSTKEY(db)
 	PROTOTYPE: $
 
 	CODE:
-	struct cdbobj *this;
+	struct cdb *this;
 	char buf[8];
-	uint32 dlen, klen;
+	U32 klen;
 
-	this = (struct cdbobj *)SvPV(SvRV(db), na);
-	if (this->end == 0) this->end = findend(this->fd);
-	ST(0) = sv_newmortal();
-	if (this->end > 2048 && sv_upgrade(ST(0), SVt_PV)) { /* Database is not empty. */
-		if (lseek(this->fd, 2048, 0) != 2048) seekerror();
-		if (cdb_bread(this->fd, buf, 8) == -1) readerror();
-		klen = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
-		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), klen); SvCUR_set(ST(0), klen);
-		if (cdb_bread(this->fd, SvPVX(ST(0)), klen) == -1) readerror();
-		this->curkey = newSVpv(SvPVX(ST(0)), klen);
-		this->curpos = 2048;
-		this->curlen = dlen;
-	}
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
+
+	iter_start(this);
+	if (iter_key(this))
+		ST(0) = sv_mortalcopy(this->curkey);
+	else
+		XSRETURN_UNDEF; /* empty database */
 
 SV *
 cdb_NEXTKEY(db, k)
@@ -229,45 +432,27 @@ cdb_NEXTKEY(db, k)
 	PROTOTYPE: $$
 
 	CODE:
-	struct cdbobj *this;
+	struct cdb *this;
 	char buf[8], *kp;
-	int fd, found;
+	int found;
 	off_t pos;
-	uint32 dlen, klen0;
+	U32 dlen, klen0;
 	STRLEN klen1;
 
 	if (!SvOK(k)) {
-		if (dowarn) warn(warn_uninit);
+		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_UNDEF;
 	}
-	this = (struct cdbobj *)SvPV(SvRV(db), na);
-	fd = this->fd;
-	if (this->end == 0) croak("Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY");
-	if (sv_eq(this->curkey, k)) {
-		if (lseek(fd, this->curpos, SEEK_SET) == -1) seekerror();
-		if (cdb_bread(fd, buf, 8) == -1) readerror();
-		klen0 = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
-		if ((pos = lseek(fd, klen0 + dlen, SEEK_CUR)) == -1) seekerror();
-		found = 1;
-	} else {
-		kp = SvPV(k, klen1);
-		found = cdb_seek(fd, kp, klen1, &dlen);
-		if (found != 0 && found != 1) readerror();
-		if (found)
-			if ((pos = lseek(fd, dlen, SEEK_CUR)) < 0) readerror();
-	}
-	ST(0) = sv_newmortal();
-	if (found && (pos < this->end) && sv_upgrade(ST(0), SVt_PV)) {
-		if (cdb_bread(fd, buf, 8) == -1) readerror();
-		klen0 = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
-		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), klen0); SvCUR_set(ST(0), klen0);
-		if (cdb_bread(fd, SvPVX(ST(0)), klen0) == -1) readerror();
-		this->curpos = pos;
-		this->curlen = dlen;
-		sv_setpvn(this->curkey, SvPVX(ST(0)), klen0);
-	} else {
-		sv_setsv(this->curkey, &sv_undef);
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
+	if (this->end == 0 || !sv_eq(this->curkey, k))
+		croak("Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY");
+	iter_advance(this);
+	if (iter_key(this))
+		ST(0) = sv_mortalcopy(this->curkey);
+	else {
+		iter_start(this);
+		(void)iter_key(this); /* prepare curkey for FETCH */
+		XSRETURN_UNDEF;
 	}
 
 SV *
@@ -280,22 +465,16 @@ cdb_new(this, fn, fntemp)
 
 	CODE:
 	SV *cdbmp;
-	struct cdbmakeobj cdbmake;
+	struct cdb_make cdbmake;
 	int i;
 	mode_t oldum;
 
-	cdbmake_init(&cdbmake.cdbm);
-
 	oldum = umask(0222);
-	cdbmake.fi = fopen(fntemp, "w");
+	cdbmake.f = PerlIO_open(fntemp, "w");
 	umask(oldum);
-	if (!cdbmake.fi) XSRETURN_UNDEF;
+	if (!cdbmake.f) XSRETURN_UNDEF;
 
-	for (i = 0; i < sizeof(cdbmake.cdbm.final); ++i)
-		if (putc(' ', cdbmake.fi) == EOF)
-			writeerror();
-
-	cdbmake.pos = sizeof(cdbmake.cdbm.final); 
+	if (cdb_make_start(&cdbmake) < 0) XSRETURN_UNDEF;
 
 	/* Oh, for referential transparency. */
 	New(0, cdbmake.fn, strlen(fn) + 1, char);
@@ -303,9 +482,8 @@ cdb_new(this, fn, fntemp)
 	strncpy(cdbmake.fn, fn, strlen(fn) + 1);
 	strncpy(cdbmake.fntemp, fntemp, strlen(fntemp) + 1);
 
-	cdbmp = newSVpv((char *)&cdbmake, sizeof(struct cdbmakeobj));
-	RETVAL = newRV(cdbmp);
-	SvREFCNT_dec(cdbmp);
+	cdbmp = newSVpv((char *)&cdbmake, sizeof(struct cdb_make));
+	RETVAL = newRV_noinc(cdbmp);
 	sv_bless(RETVAL, gv_stashpv(this, 0));
 
 	OUTPUT:
@@ -323,28 +501,21 @@ cdb_insert(cdbmake, k, v)
 	char *kp, *vp, packbuf[8];
 	int c, i;
 	STRLEN klen, vlen;
-	struct cdbmakeobj *this;
-	uint32 h;
+	struct cdb_make *this;
+	U32 h;
 
-	this = (struct cdbmakeobj *)SvPV(SvRV(cdbmake), na);
+	this = (struct cdb_make *)SvPV(SvRV(cdbmake), PL_na);
 	kp = SvPV(k, klen); vp = SvPV(v, vlen);
-	cdbmake_pack(packbuf, (uint32)klen);
-	cdbmake_pack(packbuf + 4, (uint32)vlen);
+	uint32_pack(packbuf, klen);
+	uint32_pack(packbuf + 4, vlen);
 
-	if (fwrite(packbuf, 1, 8, this->fi) < 8) writeerror();
+	if (PerlIO_write(this->f, packbuf, 8) < 8) writeerror();
 
-	h = CDBMAKE_HASHSTART;
-	for (i = 0; i < klen; ++i) {
-		c = kp[i];
-		h = cdbmake_hashadd(h, c);
-		if (putc(c, this->fi) == EOF) writeerror();
-	}
-	if (fwrite(vp, 1, vlen, this->fi) < vlen) writeerror();
+	h = cdb_hash(kp, klen);
+	if (PerlIO_write(this->f, kp, klen) < klen) writeerror();
+	if (PerlIO_write(this->f, vp, vlen) < vlen) writeerror();
 
-	if (!cdbmake_add(&this->cdbm, h, this->pos, malloc)) nomem();
-	this->pos = safeadd(this->pos, (uint32) 8);
-	this->pos = safeadd(this->pos, (uint32) klen);
-	this->pos = safeadd(this->pos, (uint32) vlen);
+	if (cdb_make_addend(this, klen, vlen, h) == -1) nomem();
 
 
 int
@@ -354,33 +525,88 @@ cdb_finish(cdbmake)
 	PROTOTYPE: $
 
 	CODE:
-	char packbuf[8];
+	char buf[8];
 	int i;
-	struct cdbmakeobj *this;
-	uint32 len, u;
+	struct cdb_make *this;
+	U32 len, u;
+	U32 count, memsize, where;
+	struct cdb_hplist *x;
+	struct cdb_hp *hp;
 
-	this = (struct cdbmakeobj *)SvPV(SvRV(cdbmake), na);
+	this = (struct cdb_make *)SvPV(SvRV(cdbmake), PL_na);
 
-	if (!cdbmake_split(&this->cdbm, malloc)) nomem();
+	for (i = 0; i < 256; ++i)
+		this->count[i] = 0;
+
+	for (x = this->head; x; x = x->next) {
+		i = x->num;
+		while (i--)
+			++this->count[255 & x->hp[i].h];
+		}
+
+	memsize = 1;
+	for (i = 0; i < 256; ++i) {
+		u = this->count[i] * 2;
+		if (u > memsize)
+			memsize = u;
+	}
+
+	memsize += this->numentries; /* no overflow possible up to now */
+	u = (U32) 0 - (U32) 1;
+	u /= sizeof(struct cdb_hp);
+	if (memsize > u) { errno = ENOMEM; XSRETURN_UNDEF; }
+
+	New(0xCDB, this->split, memsize, struct cdb_hp);
+
+	this->hash = this->split + this->numentries;
+
+	u = 0;
+	for (i = 0; i < 256; ++i) {
+		u += this->count[i]; /* bounded by numentries, so no overflow */
+		this->start[i] = u;
+	}
+
+	for (x = this->head; x; x = x->next) {
+		i = x->num;
+		while (i--)
+			this->split[--this->start[255 & x->hp[i].h]] = x->hp[i];
+	}
 
 	for (i = 0; i < 256; ++i) {
-		len = cdbmake_throw(&this->cdbm, this->pos, i);
+		count = this->count[i];
+
+		len = count + count; /* no overflow possible */
+		uint32_pack(this->final + 8 * i, this->pos);
+		uint32_pack(this->final + 8 * i + 4, len);
+
+		for (u = 0; u < len; ++u)
+			this->hash[u].h = this->hash[u].p = 0;
+
+		hp = this->split + this->start[i];
+		for (u = 0; u < count; ++u) {
+			where = (hp->h >> 8) % len;
+			while (this->hash[where].p)
+				if (++where == len)
+					where = 0;
+			this->hash[where] = *hp++;
+		}
+
 		for (u = 0; u < len; ++u) {
-			cdbmake_pack(packbuf, this->cdbm.hash[u].h);
-			cdbmake_pack(packbuf + 4, this->cdbm.hash[u].p);
-			if (fwrite(packbuf, 1, 8, this->fi) < 8) writeerror();
-			this->pos = safeadd(this->pos, (uint32) 8);
+			uint32_pack(buf, this->hash[u].h);
+			uint32_pack(buf + 4, this->hash[u].p);
+			if (PerlIO_write(this->f, buf, 8) == -1) XSRETURN_UNDEF;
+			if (posplus(this, 8) == -1) return XSRETURN_UNDEF;
 		}
 	}
 
-	if (fflush(this->fi) == EOF) writeerror();
-	rewind(this->fi);
+	if (PerlIO_flush(this->f) == EOF) writeerror();
+	PerlIO_rewind(this->f);
 
-	if (fwrite(this->cdbm.final, 1, sizeof(this->cdbm.final), this->fi) < sizeof(this->cdbm.final)) writeerror();
-	if (fflush(this->fi) == EOF) writeerror();
+	if (PerlIO_write(this->f, this->final, sizeof this->final) < sizeof this->final) writeerror();
+	if (PerlIO_flush(this->f) == EOF) writeerror();
 
-	if (fsync(fileno(this->fi)) == -1) XSRETURN_NO;
-	if (fclose(this->fi) == EOF) XSRETURN_NO;
+	if (fsync(PerlIO_fileno(this->f)) == -1) XSRETURN_NO;
+	if (PerlIO_close(this->f) == EOF) XSRETURN_NO;
 
 	if (rename(this->fntemp, this->fn)) XSRETURN_NO;
 	

@@ -11,7 +11,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.8';
+$VERSION = '0.82';
 
 =head1 NAME
 
@@ -159,41 +159,26 @@ repeated keys.  This code snippet prints B<cat cat gato chat>.
 
     print join(' ', keys %catalogue, values %catalogue);
 
-Internally, B<CDB_File> stores extra information to keep track of where
-it is while iterating over a file.  But this extra information is not
-attached to multiple keys returned by C<keys>: if you use them to
-retrieve values, they will always retrieve the first value stored under
-that key.
-
-This means that this code probably doesn't
-do what you want; it prints B<cat:gato cat:gato>.
+And these two both print B<cat:gato cat:chat>, although the second is
+more efficient.
 
     foreach $key (keys %catalogue) {
             print "$key:$catalogue{$key} ";
     } 
 
-The correct version uses C<each>, and prints B<cat:gato cat:chat>.
-
     while (($key, $val) = each %catalogue) {
             print "$key:$val ";
     }
 
-In general, there is no way to retrieve all the values associated
-with a key, other than to loop over the entire database (i.e. there
-is no equivalent to B<DB_File>'s C<get_dup> method).  However, the
-C<multi_get> method retrieves the values associated with the first
-occurrence of a key, and all consecutive identical keys.  It returns a
-reference to an array containing all the values.  If you ensure that
-all occurrences of each key are adjacent in the database (perhaps by
-C<sort>ing them during database creation), then C<multi_get> can be used
-to retrieve all the values associated with a key.  This code prints
-B<gato chat>.
+The C<multi_get> method retrieves all the values associated with a key.
+It returns a reference to an array containing all the values.  This code
+prints B<gato chat>.
 
     print "@{$catref->multi_get('cat')}";
 
 =head1 RETURN VALUES
 
-The routines C<tie>, C<new>, and C<finish> return B<false> if the
+The routines C<tie>, C<new>, and C<finish> return B<undef> if the
 attempted operation failed; C<$!> contains the reason for failure.
 
 =head1 DIAGNOSTICS
@@ -211,16 +196,11 @@ You attempted to modify a hash tied to a B<CDB_File>.
 
 You attempted to create a B<cdb> file larger than 4 gigabytes.
 
-=item Bad CDB_File format
-
-You tried to C<use CDB_File> to access something that isn't a B<cdb>
-file.
-
 =item [ Write to | Read of | Seek in ] CDB_File failed: <error string>
 
-The reported operation failed; the operating system's error string is
-shown.  These errors can only occur if there is a serious problem, for
-example, you have run out of disk space.
+If B<error string> is B<Protocol error>, you tried to C<use CDB_File> to
+access something that isn't a B<cdb> file.  Otherwise a serious OS level
+problem occurred, for example, you have run out of disk space.
 
 =item Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY
 
@@ -242,7 +222,7 @@ cdb(3).
 
 =head1 AUTHOR
 
-Tim Goodwin, <tjg@star.le.ac.uk>, 1997-01-08 - 1999-09-08.
+Tim Goodwin, <tjg@star.le.ac.uk>, 1997-01-08 - 2000-05-12.
 
 =cut
 
@@ -283,12 +263,12 @@ sub multi_get($$) {
 
 	return undef unless $this->EXISTS($key);
 
-	my $ret = []; my $next;
-	$this->FIRSTKEY;
-	do {
-		push @$ret, $this->FETCH($key);
-		$next = $this->NEXTKEY($key)
-	} while (defined $next and $next eq $key);
+	my $ret = [];
+	my $n = 0;
+	my $v;
+	while($v = $this->FETCH($key, $n++)) {
+		push @$ret, $v;
+	}
 
 	$ret
 }

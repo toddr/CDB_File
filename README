@@ -1,16 +1,14 @@
-This is beta release 0.8 of CDB_File.  See INSTALL for installation
+This is beta prerelease 0.82 of CDB_File.  See INSTALL for installation
 instructions.
 
-CDB_File is a module which provides a Perl interface to Dan
-Berstein's cdb package:
+CDB_File is a module which provides a Perl interface to Dan Berstein's
+cdb package:
 
     cdb is a fast, reliable, lightweight package for creating and
     reading constant databases.
 
     See http://pobox.com/~djb/cdb.html for the latest information about cdb.
 
-Release 0.55 of cdb is included with this Perl module.
-
 Tim Goodwin
-<tgoodwin@cygnus.co.uk>
-1999-09-08
+<tjg@star.le.ac.uk>
+2000-05-15
