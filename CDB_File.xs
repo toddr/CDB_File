@@ -44,6 +44,26 @@ extern "C" {
 #include <stdio.h>
 #include <unistd.h>
 
+/* We need to whistle up an error number for a file that is not a CDB
+file.  The BSDish EFTYPE probably gives the most useful error message;
+failing that we'll settle for the Single Unix Specification v2 EPROTO;
+and finally the rather inappropriate, but universally(?) implented,
+EINVAL. */
+#ifdef EFTYPE
+#else
+#ifdef EPROTO
+#define EFTYPE EPROTO
+#else
+#define EFTYPE EINVAL
+#endif
+#endif
+
+/* These two provide backwards compatibility with perl 5.005. */
+#ifndef WARN_UNINITIALIZED
+#define ckWARN(x) dowarn
+#define report_uninit() warn(warn_uninit)
+#endif
+
 #ifdef __cplusplus
 }
 #endif
@@ -188,7 +208,7 @@ static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
 		while ((r == -1) && (errno == EINTR));
 		if (r == -1) return -1;
 		if (r == 0) {
-			errno = EPROTO;
+			errno = EFTYPE;
 			return -1;
 		}
 		buf += r;
