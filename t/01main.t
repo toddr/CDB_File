@@ -1,6 +1,7 @@
 use strict;
 use Test;
 plan tests => 112;
+$|++;
 eval "use CDB_File";
 ok(!$@);
 
@@ -103,7 +104,8 @@ $t = tie %h, "CDB_File", 'repeat.cdb';
 ok($t);
 
 eval { $t->NEXTKEY('dog') };
-ok($@, qr/^Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY/, "Test that NEXTKEY can't be used immediately after TIEHASH");
+# ok($@, qr/^Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY/, "Test that NEXTKEY can't be used immediately after TIEHASH");
+ok(!$@, 1, "Test that NEXTKEY can be used immediately after TIEHASH");
 
 # Check keys/values works
 my @k = keys %h;

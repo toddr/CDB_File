@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.92';
+$VERSION = '0.93';
 
 =head1 NAME
 
@@ -284,11 +284,6 @@ You attempted to create a B<cdb> file larger than 4 gigabytes.
 If B<error string> is B<Protocol error>, you tried to C<use CDB_File> to
 access something that isn't a B<cdb> file.  Otherwise a serious OS level
 problem occurred, for example, you have run out of disk space.
-
-=item Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY
-
-If you are using the NEXTKEY method directly (I can't think of a reason
-why you'd want to do this), you need to call FIRSTKEY first.
 
 =back
 

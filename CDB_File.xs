@@ -72,7 +72,7 @@ EINVAL. */
 }
 #endif
 
-struct cdb {
+struct t_cdb {
 	PerlIO *fh;   /* */
 
 #ifdef HASMMAP
@@ -93,6 +93,8 @@ struct cdb {
 	U32 dlen; /* initialized if cdb_findnext() returns 1 */
 } ;
 
+typedef struct t_cdb  cdb;
+
 #define CDB_HPLIST 1000
 
 struct cdb_hp { U32 h; U32 p; } ;
@@ -103,7 +105,7 @@ struct cdb_hplist {
 	int num;
 } ;
 
-struct cdb_make {
+struct t_cdb_make {
 	PerlIO *f;            /* Handle of file being created. */
 	char *fn;             /* Final name of file. */
 	char *fntemp;         /* Temporary name of file. */
@@ -119,6 +121,8 @@ struct cdb_make {
 	int fd;
 } ;
 
+typedef struct t_cdb_make cdb_make;
+
 static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)); }
 
 static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno)); }
@@ -127,7 +131,7 @@ static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno));
 
 static void nomem() { croak("Out of memory!"); }
 
-static int cdb_make_start(struct cdb_make *c) {
+static int cdb_make_start(cdb_make *c) {
 	c->head = 0;
 	c->split = 0;
 	c->hash = 0;
@@ -136,14 +140,14 @@ static int cdb_make_start(struct cdb_make *c) {
 	return PerlIO_seek(c->f, c->pos, SEEK_SET);
 }
 
-static int posplus(struct cdb_make *c, U32 len) {
+static int posplus(cdb_make *c, U32 len) {
 	U32 newpos = c->pos + len;
 	if (newpos < len) { errno = ENOMEM; return -1; }
 	c->pos = newpos;
 	return 0;
 }
 
-static int cdb_make_addend(struct cdb_make *c, unsigned int keylen, unsigned int datalen, U32 h) {
+static int cdb_make_addend(cdb_make *c, unsigned int keylen, unsigned int datalen, U32 h) {
 	struct cdb_hplist *head;
 
 	head = c->head;
@@ -204,11 +208,11 @@ static void uint32_unpack(char s[4], U32 *u) {
 	*u = result;
 }
 
-static void cdb_findstart(struct cdb *c) {
+static void cdb_findstart(cdb *c) {
 	c->loop = 0;
 }
 
-static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
+static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos) {
 
 #ifdef HASMMAP
 	if (c->map) {
@@ -238,7 +242,7 @@ static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
 	return 0;
 }
 
-static int match(struct cdb *c,char *key,unsigned int len, U32 pos) {
+static int match(cdb *c,char *key,unsigned int len, U32 pos) {
 	char buf[32];
 	int n;
 
@@ -254,7 +258,7 @@ static int match(struct cdb *c,char *key,unsigned int len, U32 pos) {
 	return 1;
 }
 
-int cdb_findnext(struct cdb *c,char *key,unsigned int len) {
+static int cdb_findnext(cdb *c,char *key,unsigned int len) {
 	char buf[8];
 	U32 pos;
 	U32 u;
@@ -301,12 +305,12 @@ int cdb_findnext(struct cdb *c,char *key,unsigned int len) {
   return 0;
 }
 
-static int cdb_find(struct cdb *c, char *key, unsigned int len) {
+static int cdb_find(cdb *c, char *key, unsigned int len) {
   cdb_findstart(c);
   return cdb_findnext(c,key,len);
 }
 
-static void iter_start(struct cdb *c) {
+static void iter_start(cdb *c) {
 	char buf[4];
 
 	c->curpos = 2048;
@@ -316,7 +320,7 @@ static void iter_start(struct cdb *c) {
 	c->fetch_advance = 0;
 }
 
-static int iter_key(struct cdb *c) {
+static int iter_key(cdb *c) {
 	char buf[8];
 	U32 klen;
 
@@ -331,7 +335,7 @@ static int iter_key(struct cdb *c) {
 	return 0;
 }
 
-static void iter_advance(struct cdb *c) {
+static void iter_advance(cdb *c) {
 	char buf[8];
 	U32 klen, dlen;
 
@@ -341,7 +345,7 @@ static void iter_advance(struct cdb *c) {
 	c->curpos += 8 + klen + dlen;
 }
 
-static void iter_end(struct cdb *c) {
+static void iter_end(cdb *c) {
 	if (c->end != 0) {
 		c->end = 0;
 		SvREFCNT_dec(c->curkey);
@@ -351,7 +355,11 @@ static void iter_end(struct cdb *c) {
 #define cdb_datapos(c) ((c)->dpos)
 #define cdb_datalen(c) ((c)->dlen)
 
+typedef PerlIO * InputStream;
+
 MODULE = CDB_File		PACKAGE = CDB_File	PREFIX = cdb_
+
+PROTOTYPES: DISABLED
 
  # Some accessor methods.
 
@@ -362,104 +370,84 @@ MODULE = CDB_File		PACKAGE = CDB_File	PREFIX = cdb_
 
  # Additional: fixed by someone with a deeper understanding ;-) (Matt Sergeant)
 
-void
-cdb_handle(db)
-	SV *		db
+InputStream
+cdb_handle(this)
+	cdb *		this
 	
-	PROTOTYPE: $
-
 	PREINIT:
-	struct cdb *this;
         GV *gv;
         char *packname;
 
 	CODE:
-        this = (struct cdb *)SvPV(SvRV(db), PL_na);
-        packname = HvNAME(SvSTASH(SvRV(db)));
-        gv = (GV*)SvREFCNT_inc(newGVgen(packname));
-        hv_delete(GvSTASH(gv), GvNAME(gv), GvNAMELEN(gv), G_DISCARD);
         /* here we dup the filehandle, because perl space will try and close
            it when it goes out of scope */
-        IoIFP(GvIOn(gv)) = PerlIO_fdopen(PerlIO_fileno(this->fh), "r");
-        ST(0) = sv_2mortal(newRV_noinc((SV*)gv));
+        RETVAL = PerlIO_fdopen(PerlIO_fileno(this->fh), "r");
+        OUTPUT:
+            RETVAL
         
 U32
 cdb_datalen(db)
-	SV *		db
-
-	PROTOTYPE: $
+	cdb *		db
 
 	CODE:
-	RETVAL = cdb_datalen((struct cdb *)SvPV(SvRV(db), PL_na));
+	RETVAL = cdb_datalen(db);
 
 	OUTPUT:
 	RETVAL
 
 U32
 cdb_datapos(db)
-	SV *		db
-
-	PROTOTYPE: $
+	cdb *		db
 
 	CODE:
-	RETVAL = cdb_datapos((struct cdb *)SvPV(SvRV(db), PL_na));
+	RETVAL = cdb_datapos(db);
 
 	OUTPUT:
 	RETVAL
 
-SV *
-cdb_TIEHASH(dbtype, filename)
-	char *		dbtype
+cdb *
+cdb_TIEHASH(CLASS, filename)
+	char *		CLASS
 	char *		filename
 
-	PROTOTYPE: $$
-
-	CODE:
+        PREINIT:
 	PerlIO *f;
 	IO *io;
-	struct cdb cdb;
 	SV *cdbp;
 
-	cdb.fh = f = PerlIO_open(filename, "rb");
+	CODE:
+        New(0, RETVAL, 1, cdb);
+	RETVAL->fh = f = PerlIO_open(filename, "rb");
 	if (!f) XSRETURN_NO;
-	cdb.end = 0;
+	RETVAL->end = 0;
 #ifdef HASMMAP
 	{
 		struct stat st;
 		int fd = PerlIO_fileno(f);
 
-		cdb.map = 0;
+		RETVAL->map = 0;
 		if (fstat(fd, &st) == 0) {
 			if (st.st_size <= 0xffffffff) {
 				char *x;
 
 				x = mmap(0, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
 				if (x != (char *)-1) {
-					cdb.size = st.st_size;
-					cdb.map = x;
+					RETVAL->size = st.st_size;
+					RETVAL->map = x;
 				}
 			}
 		}
 	}
 #endif
-	cdbp = newSVpv((char *)&cdb, sizeof(struct cdb));
-	RETVAL = newRV_noinc(cdbp);
-	sv_bless(RETVAL, gv_stashpv(dbtype, 0));
-	/* Prevent the user stomping on the cdb. */
-	SvREADONLY_on(cdbp);
-
 	OUTPUT:
 		RETVAL
 
 SV *
-cdb_FETCH(db, k)
-	SV *		db
+cdb_FETCH(this, k)
+	cdb *		this
 	SV *		k
 	
-	PROTOTYPE: $$
-
 	PREINIT:
-	struct cdb *this;
 	PerlIO *f;
 	char buf[8];
 	int found;
@@ -473,7 +461,6 @@ cdb_FETCH(db, k)
 		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_UNDEF;
 	}
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
 	kp = SvPV(k, klen);
 	if (this->end && sv_eq(this->curkey, k)) {
 		if (cdb_read(this, buf, 8, this->curpos) == -1) readerror();
@@ -500,14 +487,11 @@ cdb_FETCH(db, k)
 	}
 
 AV *
-cdb_multi_get(db, k)
-	SV *		db
+cdb_multi_get(this, k)
+	cdb *		this
 	SV *		k
 	
-	PROTOTYPE: $$
-
 	PREINIT:
-	struct cdb *this;
 	PerlIO *f;
 	char buf[8];
 	int found;
@@ -522,7 +506,6 @@ cdb_multi_get(db, k)
 		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_UNDEF;
 	}
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
 	cdb_findstart(this);
 	RETVAL = newAV();
 	sv_2mortal((SV *)RETVAL);
@@ -543,22 +526,19 @@ cdb_multi_get(db, k)
 		RETVAL
 
 int
-cdb_EXISTS(db, k)
-	SV *		db
+cdb_EXISTS(this, k)
+	cdb *		this
 	SV *		k
 
-	PROTOTYPE: $$
-
-	CODE:
-	struct cdb *this;
+        PREINIT:
 	STRLEN klen;
 	char *kp;
 
+	CODE:
 	if (!SvOK(k)) {
 		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_NO;
 	}
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
 	kp = SvPV(k, klen);
 	RETVAL = cdb_find(this, kp, klen);
 	if (RETVAL != 0 && RETVAL != 1) readerror();
@@ -568,45 +548,36 @@ cdb_EXISTS(db, k)
 
 void
 cdb_DESTROY(db)
-	SV *		db
+        SV *    db
 
-	PROTOTYPE: $
+        PREINIT:
+	cdb *		this;
+        IO *io;
 
-	CODE:
+        CODE:
+        if (sv_isobject(db) && (SvTYPE(SvRV(db)) == SVt_PVMG) ) {
+          this = (cdb*)SvIV(SvRV(db));
 
-	if (SvCUR(SvRV(db)) == sizeof(struct cdb)) { /* It came from TIEHASH. */
-		struct cdb *this;
-		IO *io;
-
-		this = (struct cdb *)SvPV(SvRV(db), PL_na);
-		iter_end(this);
+          iter_end(this);
 #ifdef HASMMAP
-		if (this->map) {
-			munmap(this->map, this->size);
-			this->map = 0;
-		}
+          if (this->map) {
+            munmap(this->map, this->size);
+            this->map = 0;
+          }
 #endif
-		PerlIO_close(this->fh); /* close() on O_RDONLY cannot fail */
-	} else {
-		struct cdb_make *this;
-
-		this = (struct cdb_make *)SvPV(SvRV(db), PL_na);
-		SvREFCNT_dec((SV *)this);
-	}
+          PerlIO_close(this->fh); /* close() on O_RDONLY cannot fail */
+          Safefree(this);
+        }
 
 SV *
-cdb_FIRSTKEY(db)
-	SV *		db
+cdb_FIRSTKEY(this)
+	cdb *		this
 
-	PROTOTYPE: $
-
-	CODE:
-	struct cdb *this;
+        PREINIT:
 	char buf[8];
 	U32 klen;
 
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
-
+	CODE:
 	iter_start(this);
 	if (iter_key(this))
 		ST(0) = sv_mortalcopy(this->curkey);
@@ -614,27 +585,26 @@ cdb_FIRSTKEY(db)
 		XSRETURN_UNDEF; /* empty database */
 
 SV *
-cdb_NEXTKEY(db, k)
-	SV *		db
+cdb_NEXTKEY(this, k)
+	cdb *		this
 	SV *		k
 
-	PROTOTYPE: $$
-
-	CODE:
-	struct cdb *this;
+        PREINIT:
 	char buf[8], *kp;
 	int found;
 	off_t pos;
 	U32 dlen, klen0;
 	STRLEN klen1;
 
+	CODE:
 	if (!SvOK(k)) {
 		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
 		XSRETURN_UNDEF;
-	}
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
+        }
+        /* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
+         * gets re-tied so we call iter_start() anyway here */
 	if (this->end == 0 || !sv_eq(this->curkey, k))
-		croak("Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY");
+	    iter_start(this);
 	iter_advance(this);
 	if (iter_key(this))
 		ST(0) = sv_mortalcopy(this->curkey);
@@ -645,53 +615,65 @@ cdb_NEXTKEY(db, k)
 		XSRETURN_UNDEF;
 	}
 
-SV *
-cdb_new(this, fn, fntemp)
-	char *		this
+cdb_make *
+cdb_new(CLASS, fn, fntemp)
+	char *		CLASS
 	char *		fn
 	char *		fntemp
 
-	PROTOTYPE: $$$
-
-	CODE:
-	SV *cdbmp;
-	struct cdb_make cdbmake;
+        PREINIT:
+	cdb_make *cdbmake;
 	int i;
 
-	cdbmake.f = PerlIO_open(fntemp, "wb");
-	if (!cdbmake.f) XSRETURN_UNDEF;
+	CODE:
+        New(0, cdbmake, 1, cdb_make);
+	cdbmake->f = PerlIO_open(fntemp, "wb");
+	if (!cdbmake->f) XSRETURN_UNDEF;
 
-	if (cdb_make_start(&cdbmake) < 0) XSRETURN_UNDEF;
+	if (cdb_make_start(cdbmake) < 0) XSRETURN_UNDEF;
 
 	/* Oh, for referential transparency. */
-	New(0, cdbmake.fn, strlen(fn) + 1, char);
-	New(0, cdbmake.fntemp, strlen(fntemp) + 1, char);
-	strncpy(cdbmake.fn, fn, strlen(fn) + 1);
-	strncpy(cdbmake.fntemp, fntemp, strlen(fntemp) + 1);
+	New(0, cdbmake->fn, strlen(fn) + 1, char);
+	New(0, cdbmake->fntemp, strlen(fntemp) + 1, char);
+	strncpy(cdbmake->fn, fn, strlen(fn) + 1);
+	strncpy(cdbmake->fntemp, fntemp, strlen(fntemp) + 1);
 
-	cdbmp = newSVpv((char *)&cdbmake, sizeof(struct cdb_make));
-	RETVAL = newRV_noinc(cdbmp);
-	sv_bless(RETVAL, gv_stashpv(this, 0));
+        CLASS = "CDB_File::Maker"; /* OK, so this is a hack */
 
+        RETVAL = cdbmake;
+        
 	OUTPUT:
 		RETVAL
 
+MODULE = CDB_File	PACKAGE = CDB_File::Maker	PREFIX = cdbmaker_
+
 void
-cdb_insert(cdbmake, k, v)
-	SV *		cdbmake
+cdbmaker_DESTROY(sv)
+        SV *   sv
+        
+        PREINIT:
+        cdb_make *  this;
+        
+        CODE:
+        if (sv_isobject(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) ) {
+          this = (cdb_make*)SvIV(SvRV(sv));
+          
+          Safefree(this);
+        }
+
+void
+cdbmaker_insert(this, k, v)
+	cdb_make *		this
 	SV *		k
 	SV *		v
 
-	PROTOTYPE: $$$
-
-	CODE:
+        PREINIT:
 	char *kp, *vp, packbuf[8];
 	int c, i;
 	STRLEN klen, vlen;
-	struct cdb_make *this;
 	U32 h;
 
-	this = (struct cdb_make *)SvPV(SvRV(cdbmake), PL_na);
+	CODE:
 	kp = SvPV(k, klen); vp = SvPV(v, vlen);
 	uint32_pack(packbuf, klen);
 	uint32_pack(packbuf + 4, vlen);
@@ -706,22 +688,18 @@ cdb_insert(cdbmake, k, v)
 
 
 int
-cdb_finish(cdbmake)
-	SV *		cdbmake;
+cdbmaker_finish(this)
+	cdb_make *		this
 
-	PROTOTYPE: $
-
-	CODE:
+        PREINIT:
 	char buf[8];
 	int i;
-	struct cdb_make *this;
 	U32 len, u;
 	U32 count, memsize, where;
 	struct cdb_hplist *x, *prev;
 	struct cdb_hp *hp;
 
-	this = (struct cdb_make *)SvPV(SvRV(cdbmake), PL_na);
-
+	CODE:
 	for (i = 0; i < 256; ++i)
 		this->count[i] = 0;
 

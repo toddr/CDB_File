@@ -27,8 +27,4 @@ If you have built CDB_File as a static extension, follow the
 instructions given during the build process.
 
 5. If you have any problems, questions, or ideas for future
-enhancements, please contact me.
-
-Tim Goodwin
-<tjg@star.le.ac.uk>
-2001-05-29
+enhancements, please contact the author (see perldoc CDB_File).

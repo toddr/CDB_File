@@ -1,6 +1,5 @@
-This is beta release 0.91 of CDB_File.
-
-This release fixes a memory leak.
+README for CDB_File
+-------------------
 
 See INSTALL for installation instructions.
 
@@ -10,8 +9,4 @@ cdb package:
     cdb is a fast, reliable, lightweight package for creating and
     reading constant databases.
 
-    See http://pobox.com/~djb/cdb.html for the latest information about cdb.
-
-Tim Goodwin
-<tjg@star.le.ac.uk>
-2001-12-18
+    See http://cr.yp.to/cdb.html for the latest information about cdb.

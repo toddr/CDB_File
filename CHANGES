@@ -1,5 +1,11 @@
 Revision history for Perl extension CDB_File.
 
+0.93
+    - Switched to allocating memory on the heap. I have no idea how the
+      previous scheme worked at all. It should have fallen over everywhere.
+    - Fixed a bug where you re-tie the same hash and CDB_File complains
+      about calling NEXT before calling FIRST.
+
 0.92
 	- Fixed major set of leaks in both memory and filehandles
 	- Change of ownership to Matt Sergeant
