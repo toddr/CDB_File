@@ -1,0 +1,12 @@
+CDB_File is a module which provides a Perl interface to Dan
+Berstein's cdb package:
+
+    cdb is a fast, reliable, lightweight package for creating and
+    reading constant databases.
+
+    See http://pobox.com/~djb/cdb.html for the latest information about cdb.
+
+Release 0.55 of cdb is included with this Perl module.
+
+Tim Goodwin
+1997-02-12

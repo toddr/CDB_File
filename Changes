@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+0.05 1997-02-12
+	- fix order of @ISA, so imports work
+	- alpha release
+
 0.04 1997-02-06
 	- iteration (FIRSTKEY, NEXTKEY) added
 	- "pre-alpha" release

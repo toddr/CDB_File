@@ -160,7 +160,7 @@ cdb_NEXTKEY(db, key)
 	CODE:
 	char buf[8];
 	int fd;
-	uint32 dlen, klen;
+	uint32 dlen, klen, pos;
 
 	fd = CDBfd(db);
 	switch (cdb_seek(fd, SvPV(key, na), SvCUR(key), &dlen)) {
@@ -170,8 +170,8 @@ cdb_NEXTKEY(db, key)
 		RETVAL = newSVsv(&sv_undef);
 		break;
 	case 1:
-		if (lseek(fd, dlen, SEEK_CUR) < 0) readerror();
-		if (lseek(fd, 0, SEEK_CUR) >= CDBeod(db)) /* this is the end */
+		if ((pos = lseek(fd, dlen, SEEK_CUR)) < 0) readerror();
+		if (pos >= CDBeod(db)) /* this is the end */
 			RETVAL = newSVsv(&sv_undef);
 		else {
 			if (read(fd, buf, 8) < 8) readerror();
@@ -192,7 +192,7 @@ cdb_create(RHhash, fn, fntemp)
 	char *		fn
 	char *		fntemp
 
-	PROTOTYPE: \%$;$
+	PROTOTYPE: \%$$
 
 	CODE:
 	char *key;
@@ -203,11 +203,8 @@ cdb_create(RHhash, fn, fntemp)
 	char packbuf[8];
 
 	FILE *fi;
-	uint32 len;
-	uint32 u;
-	uint32 h;
-	int i;
-	int c;
+	uint32 h, len, u;
+	int c, i;
 	unsigned long datalen;
 
 	RETVAL = 0;

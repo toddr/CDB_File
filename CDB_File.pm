@@ -7,10 +7,10 @@ use vars qw($VERSION @ISA @EXPORT_OK);
 use DynaLoader ();
 use Exporter ();
 
-@ISA = qw(DynaLoader Exporter);
+@ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 bootstrap CDB_File $VERSION;
 
@@ -105,7 +105,7 @@ joined with C<$;>.
             warn "$0: can't find `$key'\n";
     }
 
-4. Perl version of cdbdump.
+4. Perl version of B<cdbdump>.
 
     tie %data, 'CDB_File', $ARGV[0] or
             die "$0: can't tie to $ARGV[0]: $!\n";
@@ -113,6 +113,29 @@ joined with C<$;>.
             print '+', length $k, ',', length $v, ":$k->$v\n";
     }
     print "\n";
+
+5. Although CDB files are constant, it's easy to update them in Perl,
+at least if you've got enough memory!  You could tie C<%out> to a
+B<DB_File> (or a B<GDBM_File>, etc.) before the assignment in order to
+reduce the memory requirement.  This sounds a bit convoluted, but it
+might be worth doing if you have a database which is read from many more
+times than it is written to.
+
+    use CDB_File 'create';
+    
+    tie %in, 'CDB_File', 'dict.cdb' or
+            die "$0: can't tie to dict.cdb: $!\n";
+    %out = %in;
+    untie %in;
+    
+    while (<>) {
+            chop;
+            ($k, $v) = split;
+            $out{$k} = $v;
+    }
+    
+    create %out, 'dict.cdb', 'dict.tmp' or
+            die "$0: can't create dict.cdb: $!\n";
 
 =head1 DIAGNOSTICS
 
