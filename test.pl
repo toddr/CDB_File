@@ -1,14 +1,14 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-BEGIN {print "1..32\n";}
+BEGIN {print "1..33\n";}
 END {print "not ok 1\n" unless $loaded;}
 use CDB_File;
 $loaded = 1;
 print "ok 1\n";
 
 # Test that attempt to tie to nonexist file fails.
-#tie %h, CDB_File, 'nonesuch.cdb' and print 'not ';
+tie %h, CDB_File, 'nonesuch.cdb' and print 'not ';
 print "ok 2\n";
 
 # Test that attempt to read incorrect file fails.
@@ -164,3 +164,14 @@ defined $h{'one'} or print "not ";
 print "ok 32\n";
 
 unlink 'good.cdb';
+
+# Test numeric data (broken before 0.8)
+$h = new CDB_File 't.cdb', 't.tmp' or print "not ";
+$h->insert(1, 1 * 23);
+$h->finish or print "not ";
+tie %h, CDB_File, 't.cdb' or print "not ";
+$h{1} == 23 or print "not ";
+untie %h;
+print "ok 33\n";
+
+unlink 't.cdb';

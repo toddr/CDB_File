@@ -1,4 +1,5 @@
-This is release 0.7 of CDB_File.  See INSTALL for installation instructions.
+This is beta release 0.8 of CDB_File.  See INSTALL for installation
+instructions.
 
 CDB_File is a module which provides a Perl interface to Dan
 Berstein's cdb package:
@@ -12,4 +13,4 @@ Release 0.55 of cdb is included with this Perl module.
 
 Tim Goodwin
 <tgoodwin@cygnus.co.uk>
-1997-10-20
+1999-09-08

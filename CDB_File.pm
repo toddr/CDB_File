@@ -11,7 +11,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.7';
+$VERSION = '0.8';
 
 =head1 NAME
 
@@ -242,7 +242,7 @@ cdb(3).
 
 =head1 AUTHOR
 
-Tim Goodwin, <tgoodwin@cygnus.co.uk>, 1997-01-08 - 1997-10-20.
+Tim Goodwin, <tjg@star.le.ac.uk>, 1997-01-08 - 1999-09-08.
 
 =cut
 

@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+0.8 1999-09-08
+	- fix bug with undefined keys / values (thanks CMC, JPB)
+	- beta release
+
 0.7 1997-10-20
 	- use Perl's Strerror instead of strerror
 	- fix bogus warning in multi_get (thanks MdlR)

@@ -114,9 +114,9 @@ cdb_TIEHASH(dbtype, filename)
 		RETVAL
 
 SV *
-cdb_FETCH(db, key)
+cdb_FETCH(db, k)
 	SV *		db
-	SV *		key
+	SV *		k
 
 	PROTOTYPE: $$
 
@@ -125,20 +125,23 @@ cdb_FETCH(db, key)
 	uint32 dlen;
 	int fd, found;
 	off_t pos;
+	STRLEN klen;
+	char *kp;
 
-	if (!SvOK(key)) {
+	if (!SvOK(k)) {
 		if (dowarn) warn(warn_uninit);
 		XSRETURN_UNDEF;
 	}
 	this = (struct cdbobj *)SvPV(SvRV(db), na);
 	fd = this->fd; /* This micro optimization makes a measurable difference. */
-	if (this->end && sv_eq(this->curkey, key)) {
-		pos = this->curpos + 8 + SvCUR(key);
+	kp = SvPV(k, klen);
+	if (this->end && sv_eq(this->curkey, k)) {
+		pos = this->curpos + 8 + klen;
 		if (lseek(fd, pos, SEEK_SET) != pos) seekerror();
 		dlen = this->curlen;
 		found = 1;
 	} else {
-		found = cdb_seek(fd, SvPV(key, na), SvCUR(key), &dlen);
+		found = cdb_seek(fd, kp, klen, &dlen);
 		if ((found != 0) && (found != 1)) readerror();
 	}
 	ST(0) = sv_newmortal();
@@ -150,22 +153,25 @@ cdb_FETCH(db, key)
 	}
 
 int
-cdb_EXISTS(db, key)
+cdb_EXISTS(db, k)
 	SV *		db
-	SV *		key
+	SV *		k
 
 	PROTOTYPE: $$
 
 	CODE:
 	struct cdbobj *this;
 	uint32 dlen;
+	STRLEN klen;
+	char *kp;
 
-	if (!SvOK(key)) {
+	if (!SvOK(k)) {
 		if (dowarn) warn(warn_uninit);
 		XSRETURN_NO;
 	}
 	this = (struct cdbobj *)SvPV(SvRV(db), na);
-	RETVAL = cdb_seek(this->fd, SvPV(key, na), SvCUR(key), &dlen);
+	kp = SvPV(k, klen);
+	RETVAL = cdb_seek(this->fd, kp, klen, &dlen);
 	if (RETVAL != 0 && RETVAL != 1) readerror();
 
 	OUTPUT:
@@ -216,34 +222,36 @@ cdb_FIRSTKEY(db)
 	}
 
 SV *
-cdb_NEXTKEY(db, key)
+cdb_NEXTKEY(db, k)
 	SV *		db
-	SV *		key
+	SV *		k
 
 	PROTOTYPE: $$
 
 	CODE:
 	struct cdbobj *this;
-	char buf[8];
+	char buf[8], *kp;
 	int fd, found;
 	off_t pos;
-	uint32 dlen, klen;
+	uint32 dlen, klen0;
+	STRLEN klen1;
 
-	if (!SvOK(key)) {
+	if (!SvOK(k)) {
 		if (dowarn) warn(warn_uninit);
 		XSRETURN_UNDEF;
 	}
 	this = (struct cdbobj *)SvPV(SvRV(db), na);
 	fd = this->fd;
 	if (this->end == 0) croak("Use CDB_File::FIRSTKEY before CDB_File::NEXTKEY");
-	if (sv_eq(this->curkey, key)) {
+	if (sv_eq(this->curkey, k)) {
 		if (lseek(fd, this->curpos, SEEK_SET) == -1) seekerror();
 		if (cdb_bread(fd, buf, 8) == -1) readerror();
-		klen = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
-		if ((pos = lseek(fd, klen + dlen, SEEK_CUR)) == -1) seekerror();
+		klen0 = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
+		if ((pos = lseek(fd, klen0 + dlen, SEEK_CUR)) == -1) seekerror();
 		found = 1;
 	} else {
-		found = cdb_seek(fd, SvPV(key, na), SvCUR(key), &dlen);
+		kp = SvPV(k, klen1);
+		found = cdb_seek(fd, kp, klen1, &dlen);
 		if (found != 0 && found != 1) readerror();
 		if (found)
 			if ((pos = lseek(fd, dlen, SEEK_CUR)) < 0) readerror();
@@ -251,13 +259,13 @@ cdb_NEXTKEY(db, key)
 	ST(0) = sv_newmortal();
 	if (found && (pos < this->end) && sv_upgrade(ST(0), SVt_PV)) {
 		if (cdb_bread(fd, buf, 8) == -1) readerror();
-		klen = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
+		klen0 = cdb_unpack(buf); dlen = cdb_unpack(buf + 4);
 		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), klen); SvCUR_set(ST(0), klen);
-		if (cdb_bread(fd, SvPVX(ST(0)), klen) == -1) readerror();
+		SvGROW(ST(0), klen0); SvCUR_set(ST(0), klen0);
+		if (cdb_bread(fd, SvPVX(ST(0)), klen0) == -1) readerror();
 		this->curpos = pos;
 		this->curlen = dlen;
-		sv_setpvn(this->curkey, SvPVX(ST(0)), klen);
+		sv_setpvn(this->curkey, SvPVX(ST(0)), klen0);
 	} else {
 		sv_setsv(this->curkey, &sv_undef);
 	}
@@ -312,13 +320,14 @@ cdb_insert(cdbmake, k, v)
 	PROTOTYPE: $$$
 
 	CODE:
-	char packbuf[8];
-	int c, i, klen, vlen;
+	char *kp, *vp, packbuf[8];
+	int c, i;
+	STRLEN klen, vlen;
 	struct cdbmakeobj *this;
 	uint32 h;
 
 	this = (struct cdbmakeobj *)SvPV(SvRV(cdbmake), na);
-	klen = SvCUR(k); vlen = SvCUR(v);
+	kp = SvPV(k, klen); vp = SvPV(v, vlen);
 	cdbmake_pack(packbuf, (uint32)klen);
 	cdbmake_pack(packbuf + 4, (uint32)vlen);
 
@@ -326,11 +335,11 @@ cdb_insert(cdbmake, k, v)
 
 	h = CDBMAKE_HASHSTART;
 	for (i = 0; i < klen; ++i) {
-		c = SvPV(k, na)[i];
+		c = kp[i];
 		h = cdbmake_hashadd(h, c);
 		if (putc(c, this->fi) == EOF) writeerror();
 	}
-	if (fwrite(SvPV(v, na), 1, vlen, this->fi) < vlen) writeerror();
+	if (fwrite(vp, 1, vlen, this->fi) < vlen) writeerror();
 
 	if (!cdbmake_add(&this->cdbm, h, this->pos, malloc)) nomem();
 	this->pos = safeadd(this->pos, (uint32) 8);
