@@ -1,21 +1,37 @@
 Revision history for Perl extension CDB_File.
 
-0.05 1997-02-12
+0.6 1997-03-25
+	- fix unsigned off_t bug
+	- fix version number confusion
+	- propagate Perl's idea of CC and LD to cdb (thanks IP, SB)
+	- use safe cdb_bread() in preference to read() (thanks MdlR)
+	- object is now a scalar again, containing struct cdbobj
+	- support repeated keys (thanks MdlR)
+	- split create into new, insert, finish
+	- optimize FETCH and NEXTKEY
+	- support building as a static extension
+	- PERLIO_NOT_STDIO so it works with useperlio defined (thanks AK, NMS)
+	- add multi_get method (thanks MdlR)
+	- fix some core dumps (thanks MdlR)
+	- make cdb object read only (thanks MdlR)
+	- alpha release
+
+0.5 1997-02-12
 	- fix order of @ISA, so imports work
 	- alpha release
 
-0.04 1997-02-06
+0.4 1997-02-06
 	- iteration (FIRSTKEY, NEXTKEY) added
 	- "pre-alpha" release
 
-0.03 1997-01-28
+0.3 1997-01-28
 	- no longer dependent on cdbmake
 	- CDB_File::cdbm removed
 	- temporary file name no longer optional
 	- "pre-alpha" release
 
-0.02 1997-01-14
+0.2 1997-01-14
 	- first "pre-alpha" release
 
-0.01 1997-01-08
+0.1 1997-01-08
 	- original version; created by h2xs 1.16

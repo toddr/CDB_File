@@ -1,3 +1,5 @@
+This is release 0.6 of CDB_File.
+
 CDB_File is a module which provides a Perl interface to Dan
 Berstein's cdb package:
 
@@ -9,4 +11,5 @@ Berstein's cdb package:
 Release 0.55 of cdb is included with this Perl module.
 
 Tim Goodwin
-1997-02-12
+<tim@uunet.pipex.com>
+1997-03-25

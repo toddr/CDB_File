@@ -1,3 +1,13 @@
+use Config;
+
+# Build cdb itself using whatever was defined for Perl.
+open OUT, "> tmp" or
+	die "$0: can't open tmp for output: $!\n";
+print OUT "CC='$Config{cc} $Config{ccflags} $Config{cccdlflags} $Config{ccdlflags} $Config{optimize}'\n";
+print OUT "LD='$Config{cc} $Config{ccflags} $Config{ldflags}'\n";
+close OUT;
+system 'sh ../../mv-if-diff tmp cdb-0.55/conf-cc.sh';
+
 use ExtUtils::MakeMaker;
 
 $cdbtargets = join ' ', map { "cdb-0.55/$_" } qw (
@@ -11,13 +21,15 @@ $cdbtargets = join ' ', map { "cdb-0.55/$_" } qw (
 WriteMakefile(
 	'NAME'		=> 'CDB_File',
 	'VERSION_FROM'	=> 'CDB_File.pm',
-	'MYEXTLIB'	=> 'cdb-0.55/libcdb$(LIB_EXT) cdb-0.55/libcdbmake$(LIB_EXT)',
+	'MYEXTLIB'	=> 'libCDB_File$(LIB_EXT)',
 	'clean'		=> { 'FILES' => $cdbtargets },
 );
 
 sub MY::postamble {
 '
-$(MYEXTLIB): cdb-0.55/Makefile
+$(MYEXTLIB): cdb-0.55/conf-cc.sh
 	cd cdb-0.55 && $(MAKE)
+	cd cdb-0.55 && ./makelib ../$(MYEXTLIB) cdb_hash.o cdb_unpack.o cdb_seek.o \
+	cdbmake_pack.o cdbmake_hash.o cdbmake_add.o
 ';
 }

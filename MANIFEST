@@ -1,9 +1,12 @@
+ACKNOWLEDGE
 CDB_File.pm
 CDB_File.xs
+COPYRIGHT
 Changes
 INSTALL
 MANIFEST
 Makefile.PL
+README
 test.pl
 typemap
 cdb-0.55/12tocdbm.sh
