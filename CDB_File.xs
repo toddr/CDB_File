@@ -73,7 +73,7 @@ EINVAL. */
 #endif
 
 struct cdb {
-	GV *glob;   /* */
+	PerlIO *fh;   /* */
 
 #ifdef HASMMAP
 	char *map;
@@ -221,11 +221,11 @@ static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
 	}
 #endif
 
-	if (PerlIO_seek(IoIFP(GvIOn(c->glob)), pos, SEEK_SET) == -1) return -1;
+	if (PerlIO_seek(c->fh, pos, SEEK_SET) == -1) return -1;
 	while (len > 0) {
 		int r;
 		do
-			r = PerlIO_read(IoIFP(GvIOn(c->glob)), buf, len);
+			r = PerlIO_read(c->fh, buf, len);
 		while ((r == -1) && (errno == EINTR));
 		if (r == -1) return -1;
 		if (r == 0) {
@@ -259,6 +259,9 @@ int cdb_findnext(struct cdb *c,char *key,unsigned int len) {
 	U32 pos;
 	U32 u;
 
+  /* Matt: reset these so if a search fails they are zero'd */
+  c->dpos = 0;
+  c->dlen = 0;
   if (!c->loop) {
     u = cdb_hash(key,len);
     if (cdb_read(c,buf,8,(u << 3) & 2047) == -1) return -1;
@@ -357,7 +360,9 @@ MODULE = CDB_File		PACKAGE = CDB_File	PREFIX = cdb_
  # it seems to work, but input from anybody with a deeper
  # understanding would be most welcome.
 
-SV *
+ # Additional: fixed by someone with a deeper understanding ;-) (Matt Sergeant)
+
+void
 cdb_handle(db)
 	SV *		db
 	
@@ -365,14 +370,19 @@ cdb_handle(db)
 
 	PREINIT:
 	struct cdb *this;
+        GV *gv;
+        char *packname;
 
 	CODE:
-	this = (struct cdb *)SvPV(SvRV(db), PL_na);
-	RETVAL = newRV_inc((SV *)GvIOn(this->glob));
-
-	OUTPUT:
-		RETVAL
-
+        this = (struct cdb *)SvPV(SvRV(db), PL_na);
+        packname = HvNAME(SvSTASH(SvRV(db)));
+        gv = (GV*)SvREFCNT_inc(newGVgen(packname));
+        hv_delete(GvSTASH(gv), GvNAME(gv), GvNAMELEN(gv), G_DISCARD);
+        /* here we dup the filehandle, because perl space will try and close
+           it when it goes out of scope */
+        IoIFP(GvIOn(gv)) = PerlIO_fdopen(PerlIO_fileno(this->fh), "r");
+        ST(0) = sv_2mortal(newRV_noinc((SV*)gv));
+        
 U32
 cdb_datalen(db)
 	SV *		db
@@ -410,11 +420,8 @@ cdb_TIEHASH(dbtype, filename)
 	struct cdb cdb;
 	SV *cdbp;
 
-	f = PerlIO_open(filename, "rb");
+	cdb.fh = f = PerlIO_open(filename, "rb");
 	if (!f) XSRETURN_NO;
-	cdb.glob = newGVgen("cdb");
-	io = GvIOn(cdb.glob);
-	IoIFP(io) = f;
 	cdb.end = 0;
 #ifdef HASMMAP
 	{
@@ -579,10 +586,7 @@ cdb_DESTROY(db)
 			this->map = 0;
 		}
 #endif
-		io = GvIOn(this->glob);
-		PerlIO_close(IoIFP(io)); /* close() on O_RDONLY cannot fail */
-		IoIFP(io) = Nullfp;
-		SvREFCNT_dec((SV *)this->glob);
+		PerlIO_close(this->fh); /* close() on O_RDONLY cannot fail */
 	} else {
 		struct cdb_make *this;
 

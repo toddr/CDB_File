@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+0.92
+	- Fixed major set of leaks in both memory and filehandles
+	- Change of ownership to Matt Sergeant
+
 0.91 2001-12-18
 	- fix memory leak (thanks MJP)
 	- document and test that multi_get returns ref to empty hash

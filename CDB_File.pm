@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.91';
+$VERSION = '0.92';
 
 =head1 NAME
 
@@ -303,6 +303,8 @@ cdb(3).
 =head1 AUTHOR
 
 Tim Goodwin, <tjg@star.le.ac.uk>.  B<CDB_File> began on 1997-01-08.
+
+Now maintained by Matt Sergeant, <matt@sergeant.org>
 
 =cut
 
