@@ -56,11 +56,11 @@ struct cdbmakeobj {
 	struct cdbmake cdbm; /* Stores pointer information, etc. */
 };
 
-static void writeerror() { croak("Write to CDB_File failed: %s", strerror(errno)); }
+static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)); }
 
-static void readerror() { croak("Read of CDB_File failed: %s", strerror(errno)); }
+static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno)); }
 
-static void seekerror() { croak("Seek in CDB_File failed: %s", strerror(errno)); }
+static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno)); }
 
 static void nomem() { croak("Out of memory!"); }
 
@@ -144,8 +144,9 @@ cdb_FETCH(db, key)
 	ST(0) = sv_newmortal();
 	if (found && sv_upgrade(ST(0), SVt_PV)) {
 		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), dlen); SvCUR_set(ST(0), dlen);
+		SvGROW(ST(0), dlen + 1); SvCUR_set(ST(0), dlen);
 		if (cdb_bread(fd, SvPVX(ST(0)), dlen) == -1) readerror();
+		SvPV(ST(0), na)[dlen] = '\0';
 	}
 
 int

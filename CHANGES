@@ -1,5 +1,12 @@
 Revision history for Perl extension CDB_File.
 
+0.7 1997-10-20
+	- use Perl's Strerror instead of strerror
+	- fix bogus warning in multi_get (thanks MdlR)
+	- fix bug with empty values (thanks RDM)
+	- don't fail test 6 if run as root (thanks MP, JB)
+	- alpha release
+
 0.6 1997-03-25
 	- fix unsigned off_t bug
 	- fix version number confusion

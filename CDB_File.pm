@@ -11,7 +11,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.6';
+$VERSION = '0.7';
 
 =head1 NAME
 
@@ -94,6 +94,8 @@ Blank lines and lines beginning with B<#> are skipped.
 
 3. Perl version of B<cdbdump>.
 
+    use CDB_File;
+
     tie %data, 'CDB_File', $ARGV[0] or
             die "$0: can't tie to $ARGV[0]: $!\n";
     while (($k, $v) = each %data) {
@@ -125,7 +127,7 @@ new one is C<finish>ed.)
     # Add any old values that haven't been replaced.
     tie %old, 'CDB_File', $file or die "$0: can't tie to $file: $!\n";
     while (($k, $v) = each %old) {
-            $new->insert($k, $v) unless $seek{$k};
+            $new->insert($k, $v) unless $seen{$k};
     }
 
     $new->finish or die "$0: CDB_File finish failed: $!\n";
@@ -180,13 +182,14 @@ In general, there is no way to retrieve all the values associated
 with a key, other than to loop over the entire database (i.e. there
 is no equivalent to B<DB_File>'s C<get_dup> method).  However, the
 C<multi_get> method retrieves the values associated with the first
-occurrence of a key, and all consecutive identical keys.  If you
-ensure that all occurrences of each key are adjacent in the database
-(perhaps by C<sort>ing them during database creation), then
-C<multi_get> can be used to retrieve all the values associated with
-a key.  This code prints B<gato chat>.
+occurrence of a key, and all consecutive identical keys.  It returns a
+reference to an array containing all the values.  If you ensure that
+all occurrences of each key are adjacent in the database (perhaps by
+C<sort>ing them during database creation), then C<multi_get> can be used
+to retrieve all the values associated with a key.  This code prints
+B<gato chat>.
 
-    print $catref->multiget('cat');
+    print "@{$catref->multi_get('cat')}";
 
 =head1 RETURN VALUES
 
@@ -239,7 +242,7 @@ cdb(3).
 
 =head1 AUTHOR
 
-Tim Goodwin, <tim@uunet.pipex.com>, 1997-01-08 - 1997-03-25.
+Tim Goodwin, <tgoodwin@cygnus.co.uk>, 1997-01-08 - 1997-10-20.
 
 =cut
 
@@ -280,11 +283,12 @@ sub multi_get($$) {
 
 	return undef unless $this->EXISTS($key);
 
-	my $ret = [];
+	my $ret = []; my $next;
 	$this->FIRSTKEY;
 	do {
-		push @$ret, $this->FETCH($key)
-	} while ($this->NEXTKEY($key) eq $key);
+		push @$ret, $this->FETCH($key);
+		$next = $this->NEXTKEY($key)
+	} while (defined $next and $next eq $key);
 
 	$ret
 }

@@ -1,9 +1,8 @@
 You need Perl 5.002 or later.
 
-It is not possible to compile CDB_File-0.6 if you are using sfio.
-Sorry.  As soon as Perl 5.004 is released, I will release CDB_File-0.7,
-which will work with sfio.  Contact me if you desperately need a sneak
-preview.
+It is not possible to compile CDB_File-0.7 if you are using sfio.
+Sorry.  I will soon be releasing CDB_File-0.8, which will work with
+sfio (but not with older versions of Perl).
 
 1. Create a Makefile.
 
@@ -17,9 +16,11 @@ preview.
 
     make test
 
-You should see `ok 1' through to `ok 29'.  (Exception: under Perl 5.002,
-test 16 fails.  This appears to be a bug in 5.002.  The effect is that
-you don't get a warning if you hand an undefined key to FETCH.)
+You should see `ok 1' through to `ok 32'.  (Note: test 27 is known to
+fail with some older versions of Perl.  This test checks that Perl
+correctly gives a warning if you attempt to look up an undefined key, so
+the failure of this test has no material impact on the correct operation
+of the library.)
 
 If any tests fail, please get in touch so we can sort out the problem.
 
@@ -37,5 +38,5 @@ instructions given during the build process.
 enhancements, please contact me.
 
 Tim Goodwin
-<tim@uunet.pipex.com>
-1997-03-25
+<tgoodwin@cygnus.co.uk>
+1997-10-20
