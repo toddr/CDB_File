@@ -147,7 +147,7 @@ $v = $t->multi_get('rabbit');
 print "ok 27\n";
 
 $v = $t->multi_get('foo');
-@$v and print 'not ';
+ref $v eq 'ARRAY' and not @$v or print 'not ';
 print "ok 28\n";
 
 while (($k, $v) = each %h) {

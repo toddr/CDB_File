@@ -1,5 +1,10 @@
 Revision history for Perl extension CDB_File.
 
+0.91 2001-12-18
+	- fix memory leak (thanks MJP)
+	- document and test that multi_get returns ref to empty hash
+	- beta release
+
 0.86 2001-05-25
 	- add handle, datalen, and datapos methods for low level access
 	- simplify multi_get, and remove a memory leak

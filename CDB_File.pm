@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.86';
+$VERSION = '0.91';
 
 =head1 NAME
 
@@ -250,6 +250,15 @@ prints B<gato chat>.
 
     print "@{$catref->multi_get('cat')}";
 
+C<multi_get> always returns an array reference.  If the key was not
+found in the database, it will be a reference to an empty array.  To
+test whether the key was found, you must test the array, and not the
+reference.
+
+    $x = $catref->multiget($key);
+    warn "$key not found\n" unless $x; # WRONG; message never printed
+    warn "$key not found\n" unless @$x; # Correct
+
 =head1 RETURN VALUES
 
 The routines C<tie>, C<new>, and C<finish> return B<undef> if the
@@ -285,10 +294,7 @@ why you'd want to do this), you need to call FIRSTKEY first.
 
 =head1 BUGS
 
-It ain't lightweight after you've plumbed Perl into it.
-
-The Perl interface to B<cdb> imposes the restriction that data must fit
-into memory.
+The C<create()> inteface could be done with C<TIEHASH>.
 
 =head1 SEE ALSO
 

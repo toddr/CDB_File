@@ -713,7 +713,7 @@ cdb_finish(cdbmake)
 	struct cdb_make *this;
 	U32 len, u;
 	U32 count, memsize, where;
-	struct cdb_hplist *x;
+	struct cdb_hplist *x, *prev;
 	struct cdb_hp *hp;
 
 	this = (struct cdb_make *)SvPV(SvRV(cdbmake), PL_na);
@@ -725,7 +725,7 @@ cdb_finish(cdbmake)
 		i = x->num;
 		while (i--)
 			++this->count[255 & x->hp[i].h];
-		}
+	}
 
 	memsize = 1;
 	for (i = 0; i < 256; ++i) {
@@ -749,11 +749,15 @@ cdb_finish(cdbmake)
 		this->start[i] = u;
 	}
 
+	prev = 0;
 	for (x = this->head; x; x = x->next) {
 		i = x->num;
 		while (i--)
 			this->split[--this->start[255 & x->hp[i].h]] = x->hp[i];
+		if (prev) Safefree(prev);
+		prev = x;
 	}
+	if (prev) Safefree(prev);
 
 	for (i = 0; i < 256; ++i) {
 		count = this->count[i];
