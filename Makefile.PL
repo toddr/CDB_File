@@ -7,4 +7,5 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
 	'NAME'		=> 'CDB_File',
 	'VERSION_FROM'	=> 'CDB_File.pm',
+	'DEFINE'	=> ($Config{d_mmap} eq define) && '-DHASMMAP',
 );

@@ -7,5 +7,5 @@ INSTALL
 MANIFEST
 Makefile.PL
 README
+bun-x.pl
 test.pl
-typemap

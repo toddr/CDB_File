@@ -1,5 +1,19 @@
 Revision history for Perl extension CDB_File.
 
+0.86 2001-05-25
+	- add handle, datalen, and datapos methods for low level access
+	- simplify multi_get, and remove a memory leak
+ 	- document need to destroy extra references
+	- open files in binary mode (thanks IW)
+	- use mmap() (thanks RDW)
+	- beta release
+
+0.85 2001-02-06
+	- multi_get now works during each (thanks MdlR)
+	- move multi_get to CDB_File.xs, remove dumb O(n*n), and fix bug
+	- don't make the database files read-only (thanks FL)
+	- beta release
+
 0.84 2000-11-21
 	- backwards compatibility with perl-5.005 (thanks BD)
 	- EPROTO not available everywhere (thanks BD); EFTYPE preferred

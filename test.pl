@@ -1,7 +1,7 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 
-BEGIN {print "1..35\n";}
+BEGIN {print "1..38\n";}
 END {print "not ok 1\n" unless $loaded;}
 use CDB_File;
 $loaded = 1;
@@ -29,29 +29,36 @@ eval { CDB_File::create %a, 'good.cdb', 'good.tmp' or print 'not ' };
 print "$@ not " if $@;
 print "ok 5\n";
 
-($d, $i, $mode, $l, $u, $g, $r, $s, $a, $m, $c, $b, $n) = stat 'good.cdb';
-# Hmm... really should use S_IRUSR and friends here.
-$mode & 0222 and print 'not ';
-print "ok 6\n";
-
 # Test that good file works.
 tie %h, CDB_File, 'good.cdb' or print 'not ';
-print "ok 7\n";
+print "ok 6\n";
 
 $t = tied %h;
 $t->FETCH('one') eq 'Hello' or print 'not ';
-print "ok 8\n";
+print "ok 7\n";
 
 $h{'one'} eq 'Hello' or print 'not ';
-print "ok 9\n";
+print "ok 8\n";
 
 defined $h{'1'} and print 'not ';
-print "ok 10\n";
+print "ok 9\n";
 
 exists $h{'two'} or print 'not ';
-print "ok 11\n";
+print "ok 10\n";
 
 exists $h{'three'} and print 'not ';
+print "ok 11\n";
+
+# Test low level access.
+$fh = $t->handle;
+exists $h{'one'};
+sysseek $fh, $t->datapos, 0;
+sysread $fh, $x, $t->datalen;
+$x eq 'Hello' or print "not ";
+exists $h{'two'};
+sysseek $fh, $t->datapos, 0;
+sysread $fh, $x, $t->datalen;
+$x eq 'Goodbye' or print "not ";
 print "ok 12\n";
 
 @h = sort keys %h;
@@ -140,8 +147,16 @@ $v = $t->multi_get('rabbit');
 print "ok 27\n";
 
 $v = $t->multi_get('foo');
-defined @$v and print 'not ';
+@$v and print 'not ';
 print "ok 28\n";
+
+while (($k, $v) = each %h) {
+	$v = $t->multi_get($k);
+	$k eq 'cat' and $$v[0] eq 'gato' and $$v[1] eq 'chat' or
+	    $k eq 'dog' and $$v[0] eq 'perro' and $$v[1] eq 'chien' or
+		$k eq 'rabbit' and $$v[0] eq 'conejo' or print 'not ';
+}
+print "ok 29\n";
 
 # Test undefined keys.
 {
@@ -151,21 +166,21 @@ print "ok 28\n";
 	$warned = 0; 
 	$x = undef;
 	not defined $h{$x} and $warned or print 'not ';
-	print "ok 29\n";
-
-	$warned = 0;
-	not exists $h{$x} and $warned or print 'not ';
 	print "ok 30\n";
 
 	$warned = 0;
-	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	not exists $h{$x} and $warned or print 'not ';
 	print "ok 31\n";
+
+	$warned = 0;
+	$v = $t->multi_get('rabbit') and not $warned or print 'not ';
+	print "ok 32\n";
 }
 
 # Check that object is readonly.
 eval { $$t = 'foo' };
 $@ =~ /^Modification of a read-only value/ and $h{'cat'} eq 'gato' or print 'not ';
-print "ok 32\n";
+print "ok 33\n";
 
 unlink 'repeat.cdb';
 
@@ -174,11 +189,11 @@ unlink 'repeat.cdb';
 CDB_File::create %a, 'good.cdb', 'good.tmp' or print "not ";
 tie %h, CDB_File, 'good.cdb' or print "not ";
 print "not " if $h{'zero'} or $h{'one'};
-print "ok 33\n";
-
-# And here's one I introduced while fixing 33 :-(.
-defined $h{'one'} or print "not ";
 print "ok 34\n";
+
+# And here's one I introduced while fixing 34 :-(.
+defined $h{'one'} or print "not ";
+print "ok 35\n";
 
 unlink 'good.cdb';
 
@@ -189,6 +204,42 @@ $h->finish or print "not ";
 tie %h, CDB_File, 't.cdb' or print "not ";
 $h{1} == 23 or print "not ";
 untie %h;
-print "ok 35\n";
+print "ok 36\n";
+
+unlink 't.cdb';
+
+# Test zero value with multi_get (broken before 0.85)
+$h = new CDB_File 't.cdb', 't.tmp' or print "not ";
+$h->insert('x', 0);
+$h->insert('x', 1);
+$h->finish or print "not ";
+$t = tie %h, CDB_File, 't.cdb' or print "not ";
+$x = $t->multi_get('x');
+scalar @$x == 2 or print "not ";
+print "ok 37\n";
+
+unlink 't.cdb';
+
+$h = new CDB_File 't.cdb', 't.tmp' or print "not ";
+for ($i = 0; $i < 10; ++$i) {
+	$h->insert($i, $i);
+}
+$h->finish or print "not ";
+$t = tie %h, CDB_File, 't.cdb' or print "not ";
+for ($i = 0; $i < 10; ++$i) {
+	($k, $v) = each %h;
+	if ($k == 2) {
+		exists $h{4} or print "not ";
+	}
+	if ($k == 5) {
+		exists $h{23} and print "not ";
+	}
+	if ($k == 7) {
+		$m = $t->multi_get(3);
+		@$m == 1 and $$m[0] = 3 or print "not ";
+	}
+	$k == $i and $v == $i or print "not ";
+}
+print "ok 38\n";
 
 unlink 't.cdb';

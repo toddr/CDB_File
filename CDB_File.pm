@@ -4,14 +4,13 @@ use strict;
 use Carp;
 use vars qw($VERSION @ISA @EXPORT_OK);
 
-use AutoLoader ();
 use DynaLoader ();
 use Exporter ();
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.84';
+$VERSION = '0.86';
 
 =head1 NAME
 
@@ -20,9 +19,15 @@ CDB_File - Perl extension for access to cdb databases
 =head1 SYNOPSIS
 
     use CDB_File;
-    tie %h, 'CDB_File', 'file.cdb' or die "tie failed: $!\n";
+    $c = tie %h, 'CDB_File', 'file.cdb' or die "tie failed: $!\n";
 
-    $t = new CDB_File ('t.cdb', 't.tmp') or die ...;
+    $fh = $c->handle;
+    sysseek $fh, $c->datapos, 0 or die ...;
+    sysread $fh, $x, $c->datalen;
+    undef $c;
+    untie %h;
+
+    $t = new CDB_File ('t.cdb', "t.$$") or die ...;
     $t->insert('key', 'value');
     $t->finish;
 
@@ -41,8 +46,25 @@ Berstein's B<cdb> package:
     cdb is a fast, reliable, lightweight package for creating and
     reading constant databases.
 
+=head2 Reading from a cdb
+
 After the C<tie> shown above, accesses to C<%h> will refer
 to the B<cdb> file C<file.cdb>, as described in L<perlfunc/tie>.
+
+Low level access to the database is provided by the three methods
+C<handle>, C<datapos>, and C<datalen>.  To use them, you must remember
+the C<CDB_File> object returned by the C<tie> call: C<$c> in the
+example above.  The C<datapos> and C<datalen> methods return the
+file offset position and length respectively of the most recently
+visited key (for example, via C<exists>).
+
+Beware that if you create an extra reference to the C<CDB_File> object
+(like C<$c> in the example above) you must destroy it (with C<undef>)
+before calling C<untie> on the hash.  This ensures that the object's
+C<DESTROY> method is called.  Note that C<perl -w> will check this for
+you; see L<perltie> for further details.
+
+=head2 Creating a cdb
 
 A B<cdb> file is created in three steps.  First call C<new CDB_File
 ($final, $tmp)>, where C<$final> is the name of the database to be
@@ -103,7 +125,59 @@ Blank lines and lines beginning with B<#> are skipped.
     }
     print "\n";
 
-4. Although a B<cdb> file is constant, you can simulate updating it
+4. For really enormous data values, you can use C<handle>, C<datapos>,
+and C<datalen>, in combination with C<sysseek> and C<sysread>, to
+avoid reading the values into memory.  Here is the script F<bun-x.pl>,
+which can extract uncompressed files and directories from a B<bun>
+file.
+
+    use CDB_File;
+
+    sub unnetstrings {
+        my($netstrings) = @_;
+        my @result;
+        while ($netstrings =~ s/^([0-9]+)://) {
+                push @result, substr($netstrings, 0, $1, '');
+                $netstrings =~ s/^,//;
+        }
+        return @result;
+    }
+    
+    my $chunk = 8192;
+    
+    sub extract {
+        my($file, $t, $b) = @_;
+        my $head = $$b{"H$file"};
+        my ($code, $type) = $head =~ m/^([0-9]+)(.)/;
+        if ($type eq "/") {
+                mkdir $file, 0777;
+        } elsif ($type eq "_") {
+                my ($total, $now, $got, $x);
+                open OUT, ">$file" or die "open for output: $!\n";
+                exists $$b{"D$code"} or die "corrupt bun file\n";
+                my $fh = $t->handle;
+                sysseek $fh, $t->datapos, 0;
+                $total = $t->datalen;
+                while ($total) {
+                        $now = ($total > $chunk) ? $chunk : $total;
+                        $got = sysread $fh, $x, $now;
+                        if (not $got) { die "read error\n"; }
+                        $total -= $got;
+                        print OUT $x;
+                }
+                close OUT;
+        } else {
+                print STDERR "warning: skipping unknown file type\n";
+        }
+    }
+
+    die "usage\n" if @ARGV != 1;
+
+    my (%b, $t);
+    $t = tie %b, 'CDB_File', $ARGV[0] or die "tie: $!\n";
+    map { extract $_, $t, \%b } unnetstrings $b{""};
+
+5. Although a B<cdb> file is constant, you can simulate updating it
 in Perl.  This is an expensive operation, as you have to create a
 new database, and copy into it everything that's unchanged from the
 old database.  (As compensation, the update does not affect database
@@ -222,7 +296,7 @@ cdb(3).
 
 =head1 AUTHOR
 
-Tim Goodwin, <tjg@star.le.ac.uk>, 1997-01-08 - 2000-05-30.
+Tim Goodwin, <tjg@star.le.ac.uk>.  B<CDB_File> began on 1997-01-08.
 
 =cut
 
@@ -255,20 +329,3 @@ sub create(\%$$) {
 }
 
 1;
-
-__END__
-
-sub multi_get($$) {
-	my($this, $key) = @_;
-
-	return undef unless $this->EXISTS($key);
-
-	my $ret = [];
-	my $n = 0;
-	my $v;
-	while($v = $this->FETCH($key, $n++)) {
-		push @$ret, $v;
-	}
-
-	$ret
-}

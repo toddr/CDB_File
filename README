@@ -1,4 +1,4 @@
-This is beta prerelease 0.83 of CDB_File.  See INSTALL for installation
+This is beta prerelease 0.86 of CDB_File.  See INSTALL for installation
 instructions.
 
 CDB_File is a module which provides a Perl interface to Dan Berstein's
@@ -11,4 +11,4 @@ cdb package:
 
 Tim Goodwin
 <tjg@star.le.ac.uk>
-2000-11-03
+2001-05-25

@@ -44,10 +44,14 @@ extern "C" {
 #include <stdio.h>
 #include <unistd.h>
 
+#ifdef HASMMAP
+#include <sys/mman.h>
+#endif
+
 /* We need to whistle up an error number for a file that is not a CDB
 file.  The BSDish EFTYPE probably gives the most useful error message;
 failing that we'll settle for the Single Unix Specification v2 EPROTO;
-and finally the rather inappropriate, but universally(?) implented,
+and finally the rather inappropriate, but universally(?) implemented,
 EINVAL. */
 #ifdef EFTYPE
 #else
@@ -69,7 +73,12 @@ EINVAL. */
 #endif
 
 struct cdb {
-	PerlIO *f;  /* The file descriptor. */
+	GV *glob;   /* */
+
+#ifdef HASMMAP
+	char *map;
+#endif
+
 	U32 end;    /* If non zero, the file offset of the first byte of hash tables. */
 	SV *curkey; /* While iterating: a copy of the current key; */
 	U32 curpos; /*                  the file offset of the current record. */
@@ -200,11 +209,23 @@ static void cdb_findstart(struct cdb *c) {
 }
 
 static int cdb_read(struct cdb *c, char *buf, unsigned int len, U32 pos) {
-	if (PerlIO_seek(c->f, pos, SEEK_SET) == -1) return -1;
+
+#ifdef HASMMAP
+	if (c->map) {
+		if ((pos > c->size) || (c->size - pos < len)) {
+			errno = EFTYPE;
+			return -1;
+		}
+		memcpy(buf, c->map + pos, len);
+		return 0;
+	}
+#endif
+
+	if (PerlIO_seek(IoIFP(GvIOn(c->glob)), pos, SEEK_SET) == -1) return -1;
 	while (len > 0) {
 		int r;
 		do
-			r = PerlIO_read(c->f, buf, len);
+			r = PerlIO_read(IoIFP(GvIOn(c->glob)), buf, len);
 		while ((r == -1) && (errno == EINTR));
 		if (r == -1) return -1;
 		if (r == 0) {
@@ -329,6 +350,53 @@ static void iter_end(struct cdb *c) {
 
 MODULE = CDB_File		PACKAGE = CDB_File	PREFIX = cdb_
 
+ # Some accessor methods.
+
+ # WARNING: I don't really understand enough about Perl's guts (file
+ # handles / globs, etc.) to write this code.  I think this is right, and
+ # it seems to work, but input from anybody with a deeper
+ # understanding would be most welcome.
+
+SV *
+cdb_handle(db)
+	SV *		db
+	
+	PROTOTYPE: $
+
+	PREINIT:
+	struct cdb *this;
+
+	CODE:
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
+	RETVAL = newRV_inc((SV *)GvIOn(this->glob));
+
+	OUTPUT:
+		RETVAL
+
+U32
+cdb_datalen(db)
+	SV *		db
+
+	PROTOTYPE: $
+
+	CODE:
+	RETVAL = cdb_datalen((struct cdb *)SvPV(SvRV(db), PL_na));
+
+	OUTPUT:
+	RETVAL
+
+U32
+cdb_datapos(db)
+	SV *		db
+
+	PROTOTYPE: $
+
+	CODE:
+	RETVAL = cdb_datapos((struct cdb *)SvPV(SvRV(db), PL_na));
+
+	OUTPUT:
+	RETVAL
+
 SV *
 cdb_TIEHASH(dbtype, filename)
 	char *		dbtype
@@ -337,12 +405,36 @@ cdb_TIEHASH(dbtype, filename)
 	PROTOTYPE: $$
 
 	CODE:
+	PerlIO *f;
+	IO *io;
 	struct cdb cdb;
 	SV *cdbp;
 
-	cdb.f = PerlIO_open(filename, "r");
-	if (!cdb.f) XSRETURN_NO;
+	f = PerlIO_open(filename, "rb");
+	if (!f) XSRETURN_NO;
+	cdb.glob = newGVgen("cdb");
+	io = GvIOn(cdb.glob);
+	IoIFP(io) = f;
 	cdb.end = 0;
+#ifdef HASMMAP
+	{
+		struct stat st;
+		int fd = PerlIO_fileno(f);
+
+		cdb.map = 0;
+		if (fstat(fd, &st) == 0) {
+			if (st.st_size <= 0xffffffff) {
+				char *x;
+
+				x = mmap(0, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+				if (x != (char *)-1) {
+					cdb.size = st.st_size;
+					cdb.map = x;
+				}
+			}
+		}
+	}
+#endif
 	cdbp = newSVpv((char *)&cdb, sizeof(struct cdb));
 	RETVAL = newRV_noinc(cdbp);
 	sv_bless(RETVAL, gv_stashpv(dbtype, 0));
@@ -353,12 +445,11 @@ cdb_TIEHASH(dbtype, filename)
 		RETVAL
 
 SV *
-cdb_FETCH(db, k, n = 0)
+cdb_FETCH(db, k)
 	SV *		db
 	SV *		k
-	unsigned int	n
 	
-	PROTOTYPE: $$;$
+	PROTOTYPE: $$
 
 	PREINIT:
 	struct cdb *this;
@@ -388,10 +479,8 @@ cdb_FETCH(db, k, n = 0)
 		found = 1;
 	} else {
 		cdb_findstart(this);
-		do {
-			found = cdb_findnext(this, kp, klen);
-			if ((found != 0) && (found != 1)) readerror();
-		} while (found && n--);
+		found = cdb_findnext(this, kp, klen);
+		if ((found != 0) && (found != 1)) readerror();
 	}
 	ST(0) = sv_newmortal();
 	if (found && sv_upgrade(ST(0), SVt_PV)) {
@@ -402,6 +491,49 @@ cdb_FETCH(db, k, n = 0)
 		if (cdb_read(this, SvPVX(ST(0)), dlen, cdb_datapos(this)) == -1) readerror();
 		SvPV(ST(0), PL_na)[dlen] = '\0';
 	}
+
+AV *
+cdb_multi_get(db, k)
+	SV *		db
+	SV *		k
+	
+	PROTOTYPE: $$
+
+	PREINIT:
+	struct cdb *this;
+	PerlIO *f;
+	char buf[8];
+	int found;
+	off_t pos;
+	STRLEN klen;
+	U32 dlen, klen0;
+	char *kp;
+	SV *x;
+
+	CODE:
+	if (!SvOK(k)) {
+		if (ckWARN(WARN_UNINITIALIZED)) report_uninit();
+		XSRETURN_UNDEF;
+	}
+	this = (struct cdb *)SvPV(SvRV(db), PL_na);
+	cdb_findstart(this);
+	RETVAL = newAV();
+	sv_2mortal((SV *)RETVAL);
+	kp = SvPV(k, klen);
+	for (;;) {
+		found = cdb_findnext(this, kp, klen);
+		if ((found != 0) && (found != 1)) readerror();
+		if (!found) break;
+		x = newSVpvn("", 0);
+		dlen = cdb_datalen(this);
+		SvGROW(x, dlen + 1); SvCUR_set(x,  dlen);
+		if (cdb_read(this, SvPVX(x), dlen, cdb_datapos(this)) == -1) readerror();
+		SvPV(x, PL_na)[dlen] = '\0';
+		av_push(RETVAL, x);
+	}
+
+	OUTPUT:
+		RETVAL
 
 int
 cdb_EXISTS(db, k)
@@ -434,12 +566,28 @@ cdb_DESTROY(db)
 	PROTOTYPE: $
 
 	CODE:
-	struct cdb *this;
 
 	if (SvCUR(SvRV(db)) == sizeof(struct cdb)) { /* It came from TIEHASH. */
+		struct cdb *this;
+		IO *io;
+
 		this = (struct cdb *)SvPV(SvRV(db), PL_na);
 		iter_end(this);
-		PerlIO_close(this->f); /* close() on O_RDONLY can't fail */
+#ifdef HASMMAP
+		if (this->map) {
+			munmap(this->map, this->size);
+			this->map = 0;
+		}
+#endif
+		io = GvIOn(this->glob);
+		PerlIO_close(IoIFP(io)); /* close() on O_RDONLY cannot fail */
+		IoIFP(io) = Nullfp;
+		SvREFCNT_dec((SV *)this->glob);
+	} else {
+		struct cdb_make *this;
+
+		this = (struct cdb_make *)SvPV(SvRV(db), PL_na);
+		SvREFCNT_dec((SV *)this);
 	}
 
 SV *
@@ -505,11 +653,8 @@ cdb_new(this, fn, fntemp)
 	SV *cdbmp;
 	struct cdb_make cdbmake;
 	int i;
-	mode_t oldum;
 
-	oldum = umask(0222);
-	cdbmake.f = PerlIO_open(fntemp, "w");
-	umask(oldum);
+	cdbmake.f = PerlIO_open(fntemp, "wb");
 	if (!cdbmake.f) XSRETURN_UNDEF;
 
 	if (cdb_make_start(&cdbmake) < 0) XSRETURN_UNDEF;
@@ -636,6 +781,8 @@ cdb_finish(cdbmake)
 			if (posplus(this, 8) == -1) XSRETURN_UNDEF;
 		}
 	}
+
+	Safefree(this->split);
 
 	if (PerlIO_flush(this->f) == EOF) writeerror();
 	PerlIO_rewind(this->f);
