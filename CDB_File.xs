@@ -45,6 +45,10 @@ extern "C" {
 #include <stdio.h>
 #include <unistd.h>
 
+#ifdef WIN32
+#define fsync _commit
+#endif
+
 #ifdef HASMMAP
 #include <sys/mman.h>
 #endif
@@ -61,12 +65,6 @@ EINVAL. */
 #else
 #define EFTYPE EINVAL
 #endif
-#endif
-
-/* These two provide backwards compatibility with perl 5.005. */
-#ifndef WARN_UNINITIALIZED
-#define ckWARN(x) dowarn
-#define report_uninit() warn(warn_uninit)
 #endif
 
 #ifdef __cplusplus
@@ -459,7 +457,6 @@ cdb_FETCH(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
 	}
 	kp = SvPV(k, klen);
@@ -504,7 +501,6 @@ cdb_multi_get(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
 	}
 	cdb_findstart(this);
@@ -537,7 +533,6 @@ cdb_EXISTS(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_NO;
 	}
 	kp = SvPV(k, klen);
@@ -599,11 +594,10 @@ cdb_NEXTKEY(this, k)
 
 	CODE:
 	if (!SvOK(k)) {
-		if (ckWARN(WARN_UNINITIALIZED)) Perl_report_uninit(aTHX);
 		XSRETURN_UNDEF;
-        }
-        /* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
-         * gets re-tied so we call iter_start() anyway here */
+    }
+	/* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
+	 * gets re-tied so we call iter_start() anyway here */
 	if (this->end == 0 || !sv_eq(this->curkey, k))
 	    iter_start(this);
 	iter_advance(this);
@@ -663,30 +657,33 @@ cdbmaker_DESTROY(sv)
         }
 
 void
-cdbmaker_insert(this, k, v)
+cdbmaker_insert(this, ...)
 	cdb_make *		this
-	SV *		k
-	SV *		v
 
         PREINIT:
 	char *kp, *vp, packbuf[8];
-	int c, i;
+	int c, i, x;
 	STRLEN klen, vlen;
 	U32 h;
+	SV *k;
+	SV *v;
 
-	CODE:
-	kp = SvPV(k, klen); vp = SvPV(v, vlen);
-	uint32_pack(packbuf, klen);
-	uint32_pack(packbuf + 4, vlen);
-
-	if (PerlIO_write(this->f, packbuf, 8) < 8) writeerror();
-
-	h = cdb_hash(kp, klen);
-	if (PerlIO_write(this->f, kp, klen) < klen) writeerror();
-	if (PerlIO_write(this->f, vp, vlen) < vlen) writeerror();
-
-	if (cdb_make_addend(this, klen, vlen, h) == -1) nomem();
-
+	PPCODE:
+	for (x = 1; x < items; x += 2) {
+		k = ST(x);
+		v = ST(x+1);
+		kp = SvPV(k, klen); vp = SvPV(v, vlen);
+		uint32_pack(packbuf, klen);
+		uint32_pack(packbuf + 4, vlen);
+	
+		if (PerlIO_write(this->f, packbuf, 8) < 8) writeerror();
+	
+		h = cdb_hash(kp, klen);
+		if (PerlIO_write(this->f, kp, klen) < klen) writeerror();
+		if (PerlIO_write(this->f, vp, vlen) < vlen) writeerror();
+	
+		if (cdb_make_addend(this, klen, vlen, h) == -1) nomem();
+	}
 
 int
 cdbmaker_finish(this)

@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.94';
+$VERSION = '0.95';
 
 =head1 NAME
 
@@ -72,6 +72,11 @@ created, and C<$tmp> is the name of a temporary file which can be
 atomically renamed to C<$final>.  Secondly, call the C<insert> method
 once for each (I<key>, I<value>) pair.  Finally, call the C<finish>
 method to complete the creation and renaming of the B<cdb> file.
+
+Alternatively, call the C<insert()> method with multiple key/value
+pairs. This can be significantly faster because there is less crossing
+over the bridge from perl to C code. One simple way to do this is to pass
+in an entire hash, as in: C<< $cdbmaker->insert(%hash); >>.
 
 A simpler interface to B<cdb> file creation is provided by
 C<CDB_File::create %t, $final, $tmp>.  This creates a B<cdb> file named
@@ -305,7 +310,7 @@ L<perltie>.
 
 =head1 BUGS
 
-The C<create()> inteface could be done with C<TIEHASH>.
+The C<create()> interface could be done with C<TIEHASH>.
 
 =head1 SEE ALSO
 
@@ -340,9 +345,7 @@ sub create(\%$$) {
 
         my $cdb = new CDB_File($fn, $fntemp) or return undef;
         my($k, $v);
-        while (($k, $v) = each %$RHdata) {
-                $cdb->insert($k, $v);
-        }
+        $cdb->insert(%$RHdata);
         $cdb->finish;
         return 1;
 }

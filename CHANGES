@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+0.95
+    - Support passing multiple key/value pairs to ->insert() for performance
+      when building CDBs.
+
 0.94
     - Made work on perl 5.8.1
     - Added some notes about performance
