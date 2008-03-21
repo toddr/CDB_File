@@ -475,7 +475,8 @@ cdb_FETCH(this, k)
 		if ((found != 0) && (found != 1)) readerror();
 	}
 	ST(0) = sv_newmortal();
-	if (found && sv_upgrade(ST(0), SVt_PV)) {
+	if (found) {
+		SvUPGRADE(ST(0), SVt_PV);
 		U32 dlen = cdb_datalen(this);
 
 		(void)SvPOK_only(ST(0));
