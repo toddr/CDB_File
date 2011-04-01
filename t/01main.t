@@ -1,8 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 112;
-
+use Test::More tests => 128;
 use CDB_File;
 
 my $good_file_db = 'good.cdb';
@@ -18,7 +17,7 @@ eval { print $h{'one'} };
 like($@, qr/^Read of CDB_File failed:/, "Test that attempt to read incorrect file fails");
 
 untie %h;
-unlink 'bad.cdb', 'bad.tmp';
+cleanup_cdb('bad');
 
 my %a = qw(one Hello two Goodbye);
 eval { CDB_File::create(%a, $good_file_db, $good_file_temp) or die "Failed to create cdb: $!" };
@@ -71,8 +70,10 @@ like($@, qr/Modification of a CDB_File attempted/, "Check modifying throws excep
 eval { delete $h{'five'} };
 like($@, qr/Modification of a CDB_File attempted/, "Check modifying throws exception");
 
-unlink $good_file_db, $good_file_temp;
-ok(!-e $_, "Remove $_") foreach($good_file_db, $good_file_temp);
+close $fh; # Duped file handle must be closed.
+undef $t;
+untie %h; # Release the tie so the file closes and we can remove it.
+cleanup_cdb('good');
 
 # Test empty file.
 %a = ();
@@ -84,7 +85,8 @@ ok((tie(%h, "CDB_File", 'empty.cdb')), "Tie new empty cdb");
 @h = keys %h;
 is(scalar @h, 0, "Empty cdb has no keys");
 
-unlink 'empty.cdb', 'empty.cdb';
+untie %h;
+cleanup_cdb('empty');
 
 # Test failing new.
 ok(!CDB_File->new('..', '.'), "Creating cdb with dirs fails");
@@ -103,6 +105,7 @@ $cdbm->insert('rabbit', 'conejo');
 $tmp = 'ERROR!'; # Test that name was stashed correctly.
 
 $cdbm->finish;
+undef $cdbm;
 
 $t = tie %h, "CDB_File", 'repeat.cdb';
 isa_ok($t, 'CDB_File');
@@ -185,7 +188,9 @@ eval { $$t = 'foo' };
 like($@, qr/^Modification of a read-only value/, "Check object (\$t) is read only");
 is($h{'cat'}, 'gato');
 
-unlink 'repeat.cdb', 'repeat.tmp';
+undef $t;
+untie %h;
+cleanup_cdb('repeat');
 
 # Regression test - dumps core in 0.6.
 %a = ('one', '');
@@ -196,8 +201,8 @@ ok(!exists $h{'zero'}, "missing key test");
 ok(defined($h{'one'}), "one is found and defined");
 is($h{'one'}, '', "one is empty");
 
-unlink $good_file_db, $good_file_temp;
-ok(!-e $_, "Remove $_") foreach($good_file_db, $good_file_temp);
+untie %h; # Release the tie so the file closes and we can remove it.
+cleanup_cdb('good');
 
 # Test numeric data (broken before 0.8)
 my $h = CDB_File->new('t.cdb', 't.tmp');
@@ -206,9 +211,9 @@ $h->insert(1, 1 * 23);
 ok($h->finish);
 ok(tie(%h, "CDB_File", 't.cdb'));
 is($h{1}, 23, "Numeric comparison works");
-untie %h;
 
-unlink 't.cdb';
+untie %h;
+cleanup_cdb('t');
 
 # Test zero value with multi_get (broken before 0.85)
 $h = CDB_File->new('t.cdb', 't.tmp');
@@ -223,7 +228,9 @@ is(@$x, 2);
 is($x->[0], 0);
 is($x->[1], 1);
 
-unlink 't.cdb';
+undef $t;
+untie %h;
+cleanup_cdb('t');
 
 $h = CDB_File->new('t.cdb', 't.tmp');
 isa_ok($h, 'CDB_File::Maker');
@@ -231,6 +238,8 @@ for (my $i = 0; $i < 10; ++$i) {
     $h->insert($i, $i);
 }
 ok($h->finish);
+undef $h;
+
 $t = tie(%h, "CDB_File", 't.cdb');
 isa_ok($t, 'CDB_File');
 
@@ -250,5 +259,14 @@ for (my $i = 0; $i < 10; ++$i) {
     is($k, $i, "$k eq $i");
     is($v, $i, "$v eq $i");
 }
+undef $t;
+untie %h;
+cleanup_cdb('t');
 
-unlink 't.cdb';
+sub cleanup_cdb {
+    my $file = shift;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+    unlink "$file.cdb", "$file.tmp";
+    ok(!-e $_, "Remove $_") foreach("$file.cdb", "$file.tmp");
+}
