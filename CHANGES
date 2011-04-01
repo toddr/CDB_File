@@ -1,5 +1,14 @@
 Revision history for Perl extension CDB_File.
 
+0.96_01 - Todd Rinald <toddr@cpan.org> 2011-04-01
+    - Remove ppport.h from distro on reccommendation from ppport.h
+    - Remove C99 style code from CDB_File to allow GCC 2.95 compilers to work
+    - Modernize Makefile.PL and require Test::More
+    - Update tests to use Test::More
+    - Fix makefile - {'d_mmap'}  isn't always defined
+    - Cleanup temp files during testing
+    - Untie before file removal so windows doesn't block the removal
+
 0.96
     - Fix for compiling under stricter compilers
 
