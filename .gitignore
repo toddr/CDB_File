@@ -2,5 +2,6 @@
 *.bs
 /CDB_File.o
 /Makefile
+/Makefile.old
 /blib/
 /pm_to_blib
