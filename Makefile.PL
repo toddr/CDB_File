@@ -11,7 +11,7 @@ WriteMakefile(
     'ABSTRACT_FROM'       => 'CDB_File.pm',
     'PL_FILES'            => {},
     ($ExtUtils::MakeMaker::VERSION >= 6.3002 ? ('LICENSE'        => 'perl', ) : ()),
-    (($Config{d_mmap} eq 'define') ? ('DEFINE' => '-DHASMMAP') : ()),
+    (($Config{'d_mmap'} && $Config{'d_mmap'} eq 'define') ? ('DEFINE' => '-DHASMMAP') : ()),
     PREREQ_PM => {
         'Test::More' => 0,  # For testing
     },
