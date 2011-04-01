@@ -8,7 +8,6 @@ MANIFEST
 Makefile.PL
 README
 bun-x.pl
-ppport.h
 t/01main.t
 t/02last.t
 typemap
