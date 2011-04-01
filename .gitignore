@@ -1,0 +1,6 @@
+*.c
+*.bs
+/CDB_File.o
+/Makefile
+/blib/
+/pm_to_blib
