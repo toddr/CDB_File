@@ -5,6 +5,9 @@ use Test::More tests => 112;
 
 use CDB_File;
 
+my $good_file_db = 'good.cdb';
+my $good_file_temp = 'good.tmp';
+
 my %h;
 ok(!(tie(%h, "CDB_File", 'nonesuch.cdb')), "Tie non-existant file");
 
@@ -15,14 +18,14 @@ eval { print $h{'one'} };
 like($@, qr/^Read of CDB_File failed:/, "Test that attempt to read incorrect file fails");
 
 untie %h;
-unlink 'bad.cdb';
+unlink 'bad.cdb', 'bad.tmp';
 
 my %a = qw(one Hello two Goodbye);
-eval { CDB_File::create(%a, 'good.cdb', 'good.tmp') or die "Failed to create cdb: $!" };
+eval { CDB_File::create(%a, $good_file_db, $good_file_temp) or die "Failed to create cdb: $!" };
 is("$@", '', "Create cdb");
 
 # Test that good file works.
-tie(%h, "CDB_File", 'good.cdb') and pass("Test that good file works");
+tie(%h, "CDB_File", $good_file_db) and pass("Test that good file works");
 
 my $t = tied %h;
 isa_ok($t, "CDB_File" );
@@ -68,7 +71,8 @@ like($@, qr/Modification of a CDB_File attempted/, "Check modifying throws excep
 eval { delete $h{'five'} };
 like($@, qr/Modification of a CDB_File attempted/, "Check modifying throws exception");
 
-unlink 'good.cdb';
+unlink $good_file_db, $good_file_temp;
+ok(!-e $_, "Remove $_") foreach($good_file_db, $good_file_temp);
 
 # Test empty file.
 %a = ();
@@ -80,7 +84,7 @@ ok((tie(%h, "CDB_File", 'empty.cdb')), "Tie new empty cdb");
 @h = keys %h;
 is(scalar @h, 0, "Empty cdb has no keys");
 
-unlink 'empty.cdb';
+unlink 'empty.cdb', 'empty.cdb';
 
 # Test failing new.
 ok(!CDB_File->new('..', '.'), "Creating cdb with dirs fails");
@@ -181,19 +185,19 @@ eval { $$t = 'foo' };
 like($@, qr/^Modification of a read-only value/, "Check object (\$t) is read only");
 is($h{'cat'}, 'gato');
 
-unlink 'repeat.cdb';
+unlink 'repeat.cdb', 'repeat.tmp';
 
 # Regression test - dumps core in 0.6.
 %a = ('one', '');
-ok((CDB_File::create(%a, 'good.cdb', 'good.tmp')), "Create good.cdb");
-ok((tie(%h, "CDB_File", 'good.cdb')), "Tie good.cdb");
+ok((CDB_File::create(%a, $good_file_db, $good_file_temp)), "Create good.cdb");
+ok((tie(%h, "CDB_File", $good_file_db)), "Tie good.cdb");
 ok(!exists $h{'zero'}, "missing key test");
+
+ok(defined($h{'one'}), "one is found and defined");
 is($h{'one'}, '', "one is empty");
 
-# And here's one I introduced while fixing the one above
-ok(defined($h{'one'}), "one is found and defined");
-
-unlink 'good.cdb';
+unlink $good_file_db, $good_file_temp;
+ok(!-e $_, "Remove $_") foreach($good_file_db, $good_file_temp);
 
 # Test numeric data (broken before 0.8)
 my $h = CDB_File->new('t.cdb', 't.tmp');
