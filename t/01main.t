@@ -165,18 +165,25 @@ while (my ($k, $v) = each %h) {
 
 # Test undefined keys.
 {
+
     my $warned = 0;
     local $SIG{__WARN__} = sub { $warned = 1 if $_[0] =~ /^Use of uninitialized value/ };
     local $^W = 1;
-    
+
     my $x;
     ok(! defined $h{$x});
-    ok($warned);
-        
+    SKIP: {
+	skip 'Perl 5.6 does not warn about $x{undef}', 1 unless $] > 5.007;
+        ok($warned);
+    }
+
     $warned = 0;
     ok(!exists $h{$x});
-    ok($warned);
-    
+    SKIP: {
+	skip 'Perl 5.6 does not warn about $x{undef}', 1 unless $] > 5.007;
+	ok($warned);
+    }
+
     $warned = 0;
     my $v = $t->multi_get('rabbit');
     ok($v);
