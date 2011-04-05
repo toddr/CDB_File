@@ -1,12 +1,18 @@
 Revision history for Perl extension CDB_File.
 
-0.97 - Todd Rinald <toddr@cpan.org> 2011-04-05
+0.97_01 - Todd Rinaldo <toddr@cpan.org> 2011-04-05
+    - Put ppport.h back in with an updated version.
+    - ppport.h warnings now indicate that the module is not perl 5.6 compatible,
+      but the test suite continues to succeed there. p5p suggests dropping suport
+      for 5.6
+
+0.97 - Todd Rinaldo <toddr@cpan.org> 2011-04-05
     - CPAN testers looks relativley clean. Publishing a stable version.
 
-0.96_02 - Todd Rinald <toddr@cpan.org> 2011-04-03
+0.96_02 - Todd Rinaldo <toddr@cpan.org> 2011-04-03
     - Perl 5.6 doesn't warn about $x{undef}. Skip this test for 5.6
 
-0.96_01 - Todd Rinald <toddr@cpan.org> 2011-04-01
+0.96_01 - Todd Rinaldo <toddr@cpan.org> 2011-04-01
     - Remove ppport.h from distro on reccommendation from ppport.h
     - Remove C99 style code from CDB_File to allow GCC 2.95 compilers to work
     - Modernize Makefile.PL and require Test::More

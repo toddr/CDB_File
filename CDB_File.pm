@@ -10,7 +10,7 @@ use Exporter ();
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(create);
 
-$VERSION = '0.97';
+$VERSION = '0.97_01';
 
 =head1 NAME
 
