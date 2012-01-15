@@ -41,7 +41,7 @@ or
 =head1 DESCRIPTION
 
 B<CDB_File> is a module which provides a Perl interface to Dan
-Berstein's B<cdb> package:
+Bernstein's B<cdb> package:
 
     cdb is a fast, reliable, lightweight package for creating and
     reading constant databases.

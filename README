@@ -3,7 +3,7 @@ README for CDB_File
 
 See INSTALL for installation instructions.
 
-CDB_File is a module which provides a Perl interface to Dan Berstein's
+CDB_File is a module which provides a Perl interface to Dan Bernstein's
 cdb package:
 
     cdb is a fast, reliable, lightweight package for creating and
