@@ -1,16 +1,11 @@
 package CDB_File;
 
 use strict;
-use Carp;
-use vars qw($VERSION @ISA @EXPORT_OK);
 
-use DynaLoader ();
-use Exporter ();
+use XSLoader ();
 
-@ISA = qw(Exporter DynaLoader);
-@EXPORT_OK = qw(create);
-
-$VERSION = '0.97_01';
+our @ISA = qw(XSLoader);
+our $VERSION = '0.97';
 
 =head1 NAME
 
@@ -324,10 +319,11 @@ Now maintained by Matt Sergeant, <matt@sergeant.org>
 
 =cut
 
-bootstrap CDB_File $VERSION;
+XSLoader::load ('CDB_File', $VERSION);
 
 sub CLEAR {
-	croak "Modification of a CDB_File attempted"
+	require Carp;
+    Carp::croak ("Modification of a CDB_File attempted");
 }
 
 sub DELETE {
