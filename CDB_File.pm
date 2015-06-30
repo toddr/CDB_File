@@ -3,9 +3,11 @@ package CDB_File;
 use strict;
 
 use XSLoader ();
+use Exporter ();
 
-our @ISA = qw(XSLoader);
-our $VERSION = '0.97';
+our @ISA = qw(XSLoader Exporter);
+our $VERSION = '0.98';
+our @EXPORT_OK = qw(create);
 
 =head1 NAME
 
