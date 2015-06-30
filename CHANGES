@@ -1,9 +1,13 @@
 Revision history for Perl extension CDB_File.
 
+0.98 - Todd Rinaldo <toddr@cpan.org> 2015-06-30
+    - Replace use vars with our (deprecated since 5.6.0)
+    - Switch from Dynaloader to XSLoader as it's known to be a lower memory profile module.
+
 0.97_01 - Todd Rinaldo <toddr@cpan.org> 2011-04-05
     - Put ppport.h back in with an updated version.
     - ppport.h warnings now indicate that the module is not perl 5.6 compatible,
-      but the test suite continues to succeed there. p5p suggests dropping suport
+      but the test suite continues to succeed there. p5p suggests dropping support
       for 5.6
 
 0.97 - Todd Rinaldo <toddr@cpan.org> 2011-04-05
