@@ -5,8 +5,8 @@ use strict;
 use XSLoader ();
 use Exporter ();
 
-our @ISA = qw(XSLoader Exporter);
-our $VERSION = '0.98';
+our @ISA       = qw(XSLoader Exporter);
+our $VERSION   = '0.98';
 our @EXPORT_OK = qw(create);
 
 =head1 NAME
@@ -321,31 +321,31 @@ Now maintained by Matt Sergeant, <matt@sergeant.org>
 
 =cut
 
-XSLoader::load ('CDB_File', $VERSION);
+XSLoader::load( 'CDB_File', $VERSION );
 
 sub CLEAR {
-	require Carp;
-    Carp::croak ("Modification of a CDB_File attempted");
+    require Carp;
+    Carp::croak("Modification of a CDB_File attempted");
 }
 
 sub DELETE {
-	&CLEAR
+    &CLEAR;
 }
 
 sub STORE {
-	&CLEAR
+    &CLEAR;
 }
 
 # Must be preloaded for the prototype.
 
 sub create(\%$$) {
-        my($RHdata, $fn, $fntemp) = @_;
+    my ( $RHdata, $fn, $fntemp ) = @_;
 
-        my $cdb = new CDB_File($fn, $fntemp) or return undef;
-        my($k, $v);
-        $cdb->insert(%$RHdata);
-        $cdb->finish;
-        return 1;
+    my $cdb = new CDB_File( $fn, $fntemp ) or return undef;
+    my ( $k, $v );
+    $cdb->insert(%$RHdata);
+    $cdb->finish;
+    return 1;
 }
 
 1;
