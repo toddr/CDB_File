@@ -1,10 +1,10 @@
 {
-   "abstract" : "Perl extension for access to cdb databases ",
+   "abstract" : "Perl extension for access to cdb databases",
    "author" : [
       "Todd E Rinaldo <toddr@cpan.org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.94, CPAN::Meta::Converter version 2.140640",
+   "generated_by" : "ExtUtils::MakeMaker version 7.0401, CPAN::Meta::Converter version 2.150001",
    "license" : [
       "perl_5"
    ],
