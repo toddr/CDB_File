@@ -6,12 +6,12 @@ use XSLoader ();
 use Exporter ();
 
 our @ISA       = qw(XSLoader Exporter);
-our $VERSION   = '0.98';
+our $VERSION   = '0.99';
 our @EXPORT_OK = qw(create);
 
 =head1 NAME
 
-CDB_File - Perl extension for access to cdb databases 
+CDB_File - Perl extension for access to cdb databases
 
 =head1 SYNOPSIS
 
@@ -144,9 +144,9 @@ file.
         }
         return @result;
     }
-    
+
     my $chunk = 8192;
-    
+
     sub extract {
         my($file, $t, $b) = @_;
         my $head = $$b{"H$file"};
@@ -240,7 +240,7 @@ more efficient.
 
     foreach $key (keys %catalogue) {
             print "$key:$catalogue{$key} ";
-    } 
+    }
 
     while (($key, $val) = each %catalogue) {
             print "$key:$val ";
@@ -260,6 +260,17 @@ reference.
     $x = $catref->multiget($key);
     warn "$key not found\n" unless $x; # WRONG; message never printed
     warn "$key not found\n" unless @$x; # Correct
+
+The C<fetch_all> method returns a hashref of all keys with the first
+value in the cdb.  This is useful for quickly loading a cdb file where
+there is a 1:1 key mapping.  In practice it proved to be about 400%
+faster then iterating a tied hash.
+
+    # Slow
+    my %copy = %tied_cdb;
+
+    # Much Faster
+    my $copy_hashref = $catref->fetch_all();
 
 =head1 RETURN VALUES
 

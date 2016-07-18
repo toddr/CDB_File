@@ -445,7 +445,7 @@ SV *
 cdb_FETCH(this, k)
 	cdb *		this
 	SV *		k
-	
+
 	PREINIT:
 	PerlIO *f;
 	char buf[8];
@@ -485,6 +485,44 @@ cdb_FETCH(this, k)
 		if (cdb_read(this, SvPVX(ST(0)), dlen, cdb_datapos(this)) == -1) readerror();
 		SvPV(ST(0), PL_na)[dlen] = '\0';
 	}
+
+
+HV *
+cdb_fetch_all(this)
+	cdb *		this
+
+	PREINIT:
+	U32 dlen;
+	SV *keyvalue;
+  int found;
+	STRLEN klen;
+	char *kp;
+
+	CODE:
+  RETVAL = newHV();
+	sv_2mortal((SV *)RETVAL);
+  iter_start(this);
+	while(iter_key(this)) {
+    cdb_findstart(this);
+	  kp = SvPV(this->curkey, klen);
+		found = cdb_findnext(this, kp, klen);
+		if ((found != 0) && (found != 1)) readerror();
+
+		keyvalue = newSVpvn("", 0);
+		dlen = cdb_datalen(this);
+		SvGROW(keyvalue, dlen + 1); SvCUR_set(keyvalue,  dlen);
+		if (cdb_read(this, SvPVX(keyvalue), dlen, cdb_datapos(this)) == -1) readerror();
+		SvPV(keyvalue, PL_na)[dlen] = '\0';
+		if (! hv_store_ent(RETVAL, this->curkey, keyvalue, 0)) {
+        SvREFCNT_dec(keyvalue);
+    };
+		iter_advance(this);
+	}
+  iter_end(this);
+
+	OUTPUT:
+		RETVAL
+
 
 AV *
 cdb_multi_get(this, k)

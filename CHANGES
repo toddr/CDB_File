@@ -1,5 +1,8 @@
 Revision history for Perl extension CDB_File.
 
+0.99 - J. Nick Koston <bdraco@cpan.org> 2016-07-16
+    - Add a fetch_all function for 1:1 hash mapping
+
 0.98 - Todd Rinaldo <toddr@cpan.org> 2015-06-30
     - Replace use vars with our (deprecated since 5.6.0)
     - Switch from Dynaloader to XSLoader as it's known to be a lower memory profile module.

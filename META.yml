@@ -25,4 +25,4 @@ resources:
   homepage: http://wiki.github.com/toddr/CDB_File
   license: http://dev.perl.org/licenses/
   repository: https://github.com/toddr/CDB_File
-version: '0.98'
+version: '0.99'
