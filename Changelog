@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+1.00 - Todd Rinaldo <toddr@cpan.org> 2020-01-19
+    - Enable github actions for automated testing
+    - Switch to github issues.
+
 0.99 - J. Nick Koston <bdraco@cpan.org> 2016-07-16
     - Add a fetch_all function for 1:1 hash mapping
 
