@@ -7,8 +7,10 @@ COPYRIGHT
 INSTALL
 Makefile.PL
 MANIFEST
+MANIFEST.SKIP
 ppport.h
 README
 t/01main.t
 t/02last.t
+t/03fetchall.t
 typemap
