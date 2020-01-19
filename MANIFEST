@@ -9,7 +9,7 @@ Makefile.PL
 MANIFEST
 MANIFEST.SKIP
 ppport.h
-README
+README.md
 t/01main.t
 t/02last.t
 t/03fetchall.t
