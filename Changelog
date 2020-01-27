@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+1.01 - Todd Rinaldo <toddr@cpan.org> 2020-01-27
+    - Fix MANIFEST so Changelog is shpped.
+    - Address file descriptor leak in CDB_File.
+
 1.00 - Todd Rinaldo <toddr@cpan.org> 2020-01-19
     - Enable github actions for automated testing
     - Switch to github issues.
