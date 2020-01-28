@@ -13,4 +13,5 @@ README.md
 t/01main.t
 t/02last.t
 t/03fetchall.t
+t/cow.t
 typemap
