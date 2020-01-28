@@ -71,6 +71,27 @@ EINVAL. */
 }
 #endif
 
+#define MIN_PERL_VERSION_FOR_COW  20
+#if PERL_REVISION >= 5 && PERL_VERSION >= MIN_PERL_VERSION_FOR_COW
+#   define CDB_CAN_COW 1
+#else
+#   define CDB_CAN_COW 0
+#endif
+
+#if CDB_CAN_COW
+#	define CDB_DO_COW(sv) STMT_START { SvIsCOW_on(sv); CowREFCNT(sv) = 1; } STMT_END
+#else
+#	define CDB_DO_COW(sv)
+#endif
+
+#define CDB_SET_PV(sv, len) STMT_START { \
+		(void) SvPOK_only(sv); \
+		SvGROW(sv, len + 2); \
+		SvCUR_set(sv,  len); \
+		CDB_DO_COW(sv); \
+		SvPV(sv, PL_na)[len] = '\0'; \
+} STMT_END
+
 struct t_cdb {
 	PerlIO *fh;   /* */
 
@@ -326,8 +347,9 @@ static int iter_key(cdb *c) {
 	if (c->curpos < c->end) {
 		if (cdb_read(c, buf, 8, c->curpos) == -1) readerror();
 		uint32_unpack(buf, &klen);
-		(void)SvPOK_only(c->curkey);
-		SvGROW(c->curkey, klen); SvCUR_set(c->curkey, klen);
+
+		CDB_SET_PV(c->curkey, klen);
+
 		if (cdb_read(c, SvPVX(c->curkey), klen, c->curpos + 8) == -1) readerror();
 		return 1;
 	}
@@ -372,7 +394,7 @@ PROTOTYPES: DISABLED
 InputStream
 cdb_handle(this)
 	cdb *		this
-	
+
 	PREINIT:
         GV *gv;
         char *packname;
@@ -383,7 +405,7 @@ cdb_handle(this)
         RETVAL = PerlIO_fdopen(PerlIO_fileno(this->fh), "r");
         OUTPUT:
             RETVAL
-        
+
 U32
 cdb_datalen(db)
 	cdb *		db
@@ -477,13 +499,13 @@ cdb_FETCH(this, k)
 	ST(0) = sv_newmortal();
 	if (found) {
 		U32 dlen;
+
 		SvUPGRADE(ST(0), SVt_PV);
 		dlen = cdb_datalen(this);
 
-		(void)SvPOK_only(ST(0));
-		SvGROW(ST(0), dlen + 1); SvCUR_set(ST(0),  dlen);
+		CDB_SET_PV(ST(0), dlen);
+
 		if (cdb_read(this, SvPVX(ST(0)), dlen, cdb_datapos(this)) == -1) readerror();
-		SvPV(ST(0), PL_na)[dlen] = '\0';
 	}
 
 
@@ -508,11 +530,14 @@ cdb_fetch_all(this)
 		found = cdb_findnext(this, kp, klen);
 		if ((found != 0) && (found != 1)) readerror();
 
-		keyvalue = newSVpvn("", 0);
 		dlen = cdb_datalen(this);
-		SvGROW(keyvalue, dlen + 1); SvCUR_set(keyvalue,  dlen);
+
+		keyvalue = newSVpvn("", 0);
+
+		CDB_SET_PV(keyvalue, dlen);
+
 		if (cdb_read(this, SvPVX(keyvalue), dlen, cdb_datapos(this)) == -1) readerror();
-		SvPV(keyvalue, PL_na)[dlen] = '\0';
+
 		if (! hv_store_ent(RETVAL, this->curkey, keyvalue, 0)) {
         SvREFCNT_dec(keyvalue);
     };
@@ -528,7 +553,7 @@ AV *
 cdb_multi_get(this, k)
 	cdb *		this
 	SV *		k
-	
+
 	PREINIT:
 	PerlIO *f;
 	char buf[8];
@@ -551,11 +576,13 @@ cdb_multi_get(this, k)
 		found = cdb_findnext(this, kp, klen);
 		if ((found != 0) && (found != 1)) readerror();
 		if (!found) break;
-		x = newSVpvn("", 0);
+
 		dlen = cdb_datalen(this);
-		SvGROW(x, dlen + 1); SvCUR_set(x,  dlen);
+		x = newSVpvn("", 0);
+
+		CDB_SET_PV(x, dlen);
+
 		if (cdb_read(this, SvPVX(x), dlen, cdb_datapos(this)) == -1) readerror();
-		SvPV(x, PL_na)[dlen] = '\0';
 		av_push(RETVAL, x);
 	}
 
@@ -615,9 +642,10 @@ cdb_FIRSTKEY(this)
 
 	CODE:
 	iter_start(this);
-	if (iter_key(this))
+	if (iter_key(this)) {
 		ST(0) = sv_mortalcopy(this->curkey);
-	else
+		CDB_DO_COW(ST(0));
+    } else
 		XSRETURN_UNDEF; /* empty database */
 
 SV *
@@ -641,9 +669,10 @@ cdb_NEXTKEY(this, k)
 	if (this->end == 0 || !sv_eq(this->curkey, k))
 	    iter_start(this);
 	iter_advance(this);
-	if (iter_key(this))
+	if (iter_key(this)) {
 		ST(0) = sv_mortalcopy(this->curkey);
-	else {
+		CDB_DO_COW(ST(0));
+	} else {
 		iter_start(this);
 		(void)iter_key(this); /* prepare curkey for FETCH */
 		this->fetch_advance = 1;
@@ -676,7 +705,7 @@ cdb_new(CLASS, fn, fntemp)
         CLASS = "CDB_File::Maker"; /* OK, so this is a hack */
 
         RETVAL = cdbmake;
-        
+
 	OUTPUT:
 		RETVAL
 
@@ -685,10 +714,10 @@ MODULE = CDB_File	PACKAGE = CDB_File::Maker	PREFIX = cdbmaker_
 void
 cdbmaker_DESTROY(sv)
         SV *   sv
-        
+
         PREINIT:
         cdb_make *  this;
-        
+
         CODE:
         if (sv_isobject(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) ) {
           this = (cdb_make*)SvIV(SvRV(sv));
@@ -715,13 +744,13 @@ cdbmaker_insert(this, ...)
 		kp = SvPV(k, klen); vp = SvPV(v, vlen);
 		uint32_pack(packbuf, klen);
 		uint32_pack(packbuf + 4, vlen);
-	
+
 		if (PerlIO_write(this->f, packbuf, 8) < 8) writeerror();
-	
+
 		h = cdb_hash(kp, klen);
 		if (PerlIO_write(this->f, kp, klen) < klen) writeerror();
 		if (PerlIO_write(this->f, vp, vlen) < vlen) writeerror();
-	
+
 		if (cdb_make_addend(this, klen, vlen, h) == -1) nomem();
 	}
 
@@ -819,7 +848,7 @@ cdbmaker_finish(this)
      this->f=0;
 
 	if (rename(this->fntemp, this->fn)) XSRETURN_NO;
-	
+
 	Safefree(this->fn);
 	Safefree(this->fntemp);
 
