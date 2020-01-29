@@ -189,10 +189,7 @@ static int cdb_make_addend(cdb_make *c, unsigned int keylen, unsigned int datale
 
 #define CDB_HASHSTART 5381
 
-static U32 cdb_hashadd(U32 h, unsigned char c) {
-	h += (h << 5);
-	return h ^ c;
-}
+#define cdb_hashadd(hh, cc) ((hh + (hh << 5)) ^ cc)
 
 static U32 cdb_hash(char *buf, unsigned int len) {
 	U32 h;
