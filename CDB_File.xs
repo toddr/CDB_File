@@ -844,7 +844,9 @@ cdbmaker_finish(this)
 	if (PerlIO_close(this->f) == EOF) XSRETURN_NO;
      this->f=0;
 
-	if (rename(this->fntemp, this->fn)) XSRETURN_NO;
+	if (rename(this->fntemp, this->fn)) {
+        croak("Failed to rename %s to %s.", this->fntemp, this->fn);
+    }
 
 	Safefree(this->fn);
 	Safefree(this->fntemp);
