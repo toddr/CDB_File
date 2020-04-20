@@ -71,8 +71,7 @@ EINVAL. */
 }
 #endif
 
-#define MIN_PERL_VERSION_FOR_COW  20
-#if PERL_REVISION >= 5 && PERL_VERSION >= MIN_PERL_VERSION_FOR_COW
+#if defined(SV_COW_REFCNT_MAX)
 #   define CDB_CAN_COW 1
 #else
 #   define CDB_CAN_COW 0
