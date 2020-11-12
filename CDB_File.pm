@@ -5,7 +5,7 @@ use strict;
 use XSLoader ();
 use Exporter ();
 
-our @ISA       = qw(XSLoader Exporter);
+our @ISA       = qw(Exporter);
 our $VERSION   = '1.02';
 our @EXPORT_OK = qw(create);
 
