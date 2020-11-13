@@ -30,6 +30,8 @@ jobs:
         run: perl -I$(pwd) Makefile.PL
       - name: make test
         run: make test
+      - name: Extended Tests
+        run: prove -b xt/*.t
 
   linux:
     name: "linux ${{ matrix.perl-version }}"
@@ -76,6 +78,8 @@ jobs:
       - run: perl Makefile.PL
       - run: make
       - run: make test
+      - name: Extended Tests
+        run: prove -b xt/*.t
 
   macOS:
     needs: [ubuntu, linux]
@@ -102,6 +106,8 @@ jobs:
       - run: perl Makefile.PL
       - run: make
       - run: make test
+      - name: Extended Tests
+        run: prove -b xt/*.t
 
   windows:
     needs: [ubuntu, linux]
@@ -126,3 +132,5 @@ jobs:
         run: make
       - name: Run Tests
         run: make test
+      - name: Extended Tests
+        run: prove -b xt/*.t

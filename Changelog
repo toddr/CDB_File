@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+1.03 - Todd Rinaldo <toddr@cpan.org> 2020-11-13
+     - Fix incompatibility with CDB files due to accidental algorithm change.
+     - Add xt tests for 0.96 databases to assure this does not happen again.
+
 1.02 - Todd Rinaldo <toddr@cpan.org> 2020-01-29
     - Invoke new as a class method in docs and practice.
     - Add support for COW PVs when returning key values. This will hopefully
