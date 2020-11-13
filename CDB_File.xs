@@ -88,7 +88,7 @@ EINVAL. */
 		SvGROW(sv, len + 2); \
 		SvCUR_set(sv,  len); \
 		CDB_DO_COW(sv); \
-		SvPV(sv, PL_na)[len] = '\0'; \
+		SvPVX(sv)[len] = '\0'; \
 } STMT_END
 
 struct t_cdb {
