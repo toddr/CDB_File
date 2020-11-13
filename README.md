@@ -1,5 +1,3 @@
-[![](https://github.com/toddr/CDB_File/workflows/linux/badge.svg)](https://github.com/toddr/CDB_File/actions) [![](https://github.com/toddr/CDB_File/workflows/macos/badge.svg)](https://github.com/toddr/CDB_File/actions) [![](https://github.com/toddr/CDB_File/workflows/windows/badge.svg)](https://github.com/toddr/CDB_File/actions)
-
 # NAME
 
 CDB\_File - Perl extension for access to cdb databases
@@ -15,7 +13,7 @@ CDB\_File - Perl extension for access to cdb databases
     undef $c;
     untie %h;
 
-    $t = new CDB_File ('t.cdb', "t.$$") or die ...;
+    $t = CDB_File->new('t.cdb', "t.$$") or die ...;
     $t->insert('key', 'value');
     $t->finish;
 
@@ -303,13 +301,57 @@ fashion, rather than via tie().
 For more information on the methods available on tied hashes see
 [perltie](https://metacpan.org/pod/perltie).
 
+# THE ALGORITHM
+
+This algorithm is described at [http://cr.yp.to/cdb/cdb.txt](http://cr.yp.to/cdb/cdb.txt) It is
+small enough that it is included inline in the event that the
+internet loses the page:
+
+## A structure for constant databases
+
+Copyright (c) 1996 D. J. Bernstein, [djb@pobox.com](https://metacpan.org/pod/djb%40pobox.com)
+
+A cdb is an associative array: it maps strings ('keys'') to strings
+('data'').
+
+A cdb contains 256 pointers to linearly probed open hash tables. The
+hash tables contain pointers to (key,data) pairs. A cdb is stored in
+a single file on disk:
+
+    +----------------+---------+-------+-------+-----+---------+
+    | p0 p1 ... p255 | records | hash0 | hash1 | ... | hash255 |
+    +----------------+---------+-------+-------+-----+---------+
+
+Each of the 256 initial pointers states a position and a length. The
+position is the starting byte position of the hash table. The length
+is the number of slots in the hash table.
+
+Records are stored sequentially, without special alignment. A record
+states a key length, a data length, the key, and the data.
+
+Each hash table slot states a hash value and a byte position. If the
+byte position is 0, the slot is empty. Otherwise, the slot points to
+a record whose key has that hash value.
+
+Positions, lengths, and hash values are 32-bit quantities, stored in
+little-endian form in 4 bytes. Thus a cdb must fit into 4 gigabytes.
+
+A record is located as follows. Compute the hash value of the key in
+the record. The hash value modulo 256 is the number of a hash table.
+The hash value divided by 256, modulo the length of that table, is a
+slot number. Probe that slot, the next higher slot, and so on, until
+you find the record or run into an empty slot.
+
+The cdb hash function is `h = ((h << 5) + h) ^ c`, with a starting
+hash of 5381.
+
 # BUGS
 
 The `create()` interface could be done with `TIEHASH`.
 
 # SEE ALSO
 
-cdb(3).
+cdb(3)
 
 # AUTHOR
 
