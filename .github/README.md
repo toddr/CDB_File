@@ -1,3 +1,5 @@
+[![](https://github.com/toddr/CDB_File/workflows/linux/badge.svg)](https://github.com/toddr/CDB_File/actions) [![](https://github.com/toddr/CDB_File/workflows/macos/badge.svg)](https://github.com/toddr/CDB_File/actions) [![](https://github.com/toddr/CDB_File/workflows/windows/badge.svg)](https://github.com/toddr/CDB_File/actions)
+
 # NAME
 
 CDB\_File - Perl extension for access to cdb databases
@@ -357,4 +359,6 @@ cdb(3)
 
 Tim Goodwin, <tjg@star.le.ac.uk>.  **CDB\_File** began on 1997-01-08.
 
-Now maintained by Matt Sergeant, <matt@sergeant.org>
+Work provided through 2008 by Matt Sergeant, <matt@sergeant.org>
+
+Now maintained  by Todd Rinaldo, <toddr@cpan.org>
