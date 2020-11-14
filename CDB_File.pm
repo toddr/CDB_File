@@ -6,7 +6,7 @@ use XSLoader ();
 use Exporter ();
 
 our @ISA       = qw(Exporter);
-our $VERSION   = '1.02';
+our $VERSION   = '1.03';
 our @EXPORT_OK = qw(create);
 
 =head1 NAME
