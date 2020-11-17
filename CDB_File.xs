@@ -99,6 +99,7 @@ struct t_cdb {
 #endif
 
     U32 end;    /* If non zero, the file offset of the first byte of hash tables. */
+    bool is_utf8; /* will we be reading in utf8 encoded data? If so we'll set SvUTF8 = true; */
     SV *curkey; /* While iterating: a copy of the current key; */
     U32 curpos; /*                  the file offset of the current record. */
     int fetch_advance; /* the kludge */
@@ -126,6 +127,7 @@ struct cdb_hplist {
 
 struct t_cdb_make {
     PerlIO *f;            /* Handle of file being created. */
+    bool is_utf8; /* Coerce the PV to utf8 before writing out the data? */
     char *fn;             /* Final name of file. */
     char *fntemp;         /* Temporary name of file. */
     char final[2048];
@@ -426,9 +428,10 @@ cdb_datapos(db)
     RETVAL
 
 cdb *
-cdb_TIEHASH(CLASS, filename)
+cdb_TIEHASH(CLASS, filename, is_utf8=0)
     char *        CLASS
     char *        filename
+    SV *          is_utf8
 
         PREINIT:
     PerlIO *f;
@@ -437,6 +440,7 @@ cdb_TIEHASH(CLASS, filename)
 
     CODE:
         Newxz(RETVAL, 1, cdb);
+    RETVAL->is_utf8 = SvTRUE(is_utf8);
     RETVAL->fh = f = PerlIO_open(filename, "rb");
     if (!f) XSRETURN_NO;
     RETVAL->end = 0;
@@ -679,27 +683,30 @@ cdb_NEXTKEY(this, k)
     }
 
 cdb_make *
-cdb_new(CLASS, fn, fntemp)
+cdb_new(CLASS, fn, fntemp, is_utf8=0)
     char *        CLASS
     char *        fn
     char *        fntemp
+    SV *          is_utf8;
 
         PREINIT:
     cdb_make *cdbmake;
     int i;
 
     CODE:
-        New(0, cdbmake, 1, cdb_make);
-    cdbmake->f = PerlIO_open(fntemp, "wb");
-    if (!cdbmake->f) XSRETURN_UNDEF;
+        Newxz(cdbmake, 1, cdb_make);
+        cdbmake->f = PerlIO_open(fntemp, "wb");
+        cdbmake->is_utf8 = SvTRUE(is_utf8);
 
-    if (cdb_make_start(cdbmake) < 0) XSRETURN_UNDEF;
+        if (!cdbmake->f) XSRETURN_UNDEF;
 
-    /* Oh, for referential transparency. */
-    New(0, cdbmake->fn, strlen(fn) + 1, char);
-    New(0, cdbmake->fntemp, strlen(fntemp) + 1, char);
-    strncpy(cdbmake->fn, fn, strlen(fn) + 1);
-    strncpy(cdbmake->fntemp, fntemp, strlen(fntemp) + 1);
+        if (cdb_make_start(cdbmake) < 0) XSRETURN_UNDEF;
+
+        /* Oh, for referential transparency. */
+        New(0, cdbmake->fn, strlen(fn) + 1, char);
+        New(0, cdbmake->fntemp, strlen(fntemp) + 1, char);
+        strncpy(cdbmake->fn, fn, strlen(fn) + 1);
+        strncpy(cdbmake->fntemp, fntemp, strlen(fntemp) + 1);
 
         CLASS = "CDB_File::Maker"; /* OK, so this is a hack */
 

@@ -396,10 +396,10 @@ sub STORE {
 
 # Must be preloaded for the prototype.
 
-sub create(\%$$) {
-    my ( $RHdata, $fn, $fntemp ) = @_;
+sub create(\%$$;$) {
+    my ( $RHdata, $fn, $fntemp, $is_utf8 ) = @_;
 
-    my $cdb = CDB_File->new( $fn, $fntemp ) or return undef;
+    my $cdb = CDB_File->new( $fn, $fntemp, $is_utf8 ) or return undef;
     my ( $k, $v );
     $cdb->insert(%$RHdata);
     $cdb->finish;
