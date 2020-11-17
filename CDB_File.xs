@@ -332,6 +332,8 @@ static void iter_start(cdb *c) {
     c->curpos = 2048;
     if (cdb_read(c, buf, 4, 0) == -1) readerror();
     uint32_unpack(buf, &c->end);
+
+    SvREFCNT_dec(c->curkey); /* Free the previous SV */
     c->curkey = NEWSV(0xcdb, 1);
     c->fetch_advance = 0;
 }
@@ -366,6 +368,7 @@ static void iter_end(cdb *c) {
     if (c->end != 0) {
         c->end = 0;
         SvREFCNT_dec(c->curkey);
+        c->curkey = NULL;
     }
 }
 
@@ -433,7 +436,7 @@ cdb_TIEHASH(CLASS, filename)
     SV *cdbp;
 
     CODE:
-        New(0, RETVAL, 1, cdb);
+        Newxz(RETVAL, 1, cdb);
     RETVAL->fh = f = PerlIO_open(filename, "rb");
     if (!f) XSRETURN_NO;
     RETVAL->end = 0;
