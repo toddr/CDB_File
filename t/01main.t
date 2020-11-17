@@ -93,7 +93,7 @@ cleanup_cdb('empty');
 ok( !CDB_File->new( '..', '.' ), "Creating cdb with dirs fails" );
 
 # Test file with repeated keys.
-my $tmp = 'repeat.tmp';
+my $tmp  = 'repeat.tmp';
 my $cdbm = CDB_File->new( 'repeat.cdb', $tmp );
 isa_ok( $cdbm, 'CDB_File::Maker' );
 
@@ -150,12 +150,12 @@ is( $k[4], 'rabbit' );
 is( $v[4], 'conejo' );
 
 my $v = $t->multi_get('cat');
-is( @$v, 2, "multi_get returned 2 entries" );
+is( @$v,     2, "multi_get returned 2 entries" );
 is( $v->[0], 'gato' );
 is( $v->[1], 'chat' );
 
 $v = $t->multi_get('dog');
-is( @$v, 2, "multi_get returned 2 entries" );
+is( @$v,     2, "multi_get returned 2 entries" );
 is( $v->[0], 'perro' );
 is( $v->[1], 'chien' );
 
@@ -214,8 +214,8 @@ cleanup_cdb('repeat');
 # Regression test - dumps core in 0.6.
 %a = ( 'one', '' );
 ok( ( CDB_File::create( %a, $good_file_db, $good_file_temp ) ), "Create good.cdb" );
-ok( ( tie( %h, "CDB_File", $good_file_db ) ), "Tie good.cdb" );
-ok( !exists $h{'zero'}, "missing key test" );
+ok( ( tie( %h, "CDB_File", $good_file_db ) ),                   "Tie good.cdb" );
+ok( !exists $h{'zero'},                                         "missing key test" );
 
 ok( defined( $h{'one'} ), "one is found and defined" );
 is( $h{'one'}, '', "one is empty" );
