@@ -631,7 +631,7 @@ cdb_FETCH(this, k)
             ST(0) = sv_2mortal(sv_from_datapos(this, dlen));
         }
         else {
-            ST(0) = sv_newmortal();
+            XSRETURN_UNDEF;
         }
 
 HV *
