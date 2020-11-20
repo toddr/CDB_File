@@ -83,24 +83,9 @@ EINVAL. */
 #    define CDB_DO_COW(sv)
 #endif
 
-#define SV_FROM_CDB(sv, cdb, buf, len) STMT_START { \
-    sv = newSV(len + 1 + CDB_CAN_COW); \
-    SvPOK_on(sv); \
-    CDB_DO_COW(sv); \
-    if(cdb->is_utf8) SvUTF8_on(sv); \
-    buf = SvPVX(sv); \
-    if (cdb_read(cdb, buf, len, cdb_datapos(cdb)) == -1) \
-        readerror(); \
-    buf[len] = (char) 0; \
-    SvCUR_set(sv, len); \
-} STMT_END
+#define cdb_datapos(c) ((c)->dpos)
+#define cdb_datalen(c) ((c)->dlen)
 
-#define SV_FROM_CURKEY(sv, cdb) STMT_START { \
-    (sv) = newSV((cdb)->curkey.len + 1 + CDB_CAN_COW); \
-    sv_setpvn((sv), (cdb)->curkey.pv, (cdb)->curkey.len); \
-    CDB_DO_COW(sv); \
-    if((cdb)->is_utf8) SvUTF8_on(sv); \
-} STMT_END
 
 struct t_string_finder {
     char *pv;
@@ -164,6 +149,8 @@ struct t_cdb_make {
 
 typedef struct t_cdb_make cdb_make;
 
+static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos);
+
 static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)); }
 
 static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno)); }
@@ -171,6 +158,35 @@ static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno));
 static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno)); }
 
 static void nomem() { croak("Out of memory!"); }
+
+static inline SV * sv_from_datapos(cdb *c, STRLEN len) {
+    SV *sv;
+    char *buf;
+
+    sv = newSV(len + 1 + CDB_CAN_COW);
+    SvPOK_on(sv);
+    CDB_DO_COW(sv);
+    if(c->is_utf8)
+        SvUTF8_on(sv);
+    buf = SvPVX(sv);
+    if (cdb_read(c, buf, len, cdb_datapos(c)) == -1)
+        readerror();
+    buf[len] = '\0';
+    SvCUR_set(sv, len);
+
+    return sv;
+}
+
+static inline SV * sv_from_curkey (cdb *c) {
+    SV* sv;
+    sv = newSV(c->curkey.len + 1 + CDB_CAN_COW);
+    sv_setpvn(sv, c->curkey.pv, c->curkey.len);
+    CDB_DO_COW(sv);
+    if(c->is_utf8)
+        SvUTF8_on(sv);
+
+    return sv;
+}
 
 static int cdb_make_start(cdb_make *c) {
     c->head = 0;
@@ -427,7 +443,6 @@ inline void CDB_ASSURE_CURKEY_MEM(cdb *c, STRLEN len) {
     else {
         newlen = len - len % 1024  + 1024; /* Grow by a multiple of 1024. */
     }
-    printf("Resize %d => %d\n", len, newlen);
 
     if(c->curkey.pv)
         Renew(c->curkey.pv, newlen, char);
@@ -489,9 +504,6 @@ static void iter_end(cdb *c) {
         c->curkey.hash = 0;
     }
 }
-
-#define cdb_datapos(c) ((c)->dpos)
-#define cdb_datalen(c) ((c)->dlen)
 
 typedef PerlIO * InputStream;
 
@@ -622,9 +634,8 @@ cdb_FETCH(this, k)
 
         if (found) {
             U32 dlen;
-            char *buf;
             dlen = cdb_datalen(this);
-            SV_FROM_CDB(ST(0), this, buf, dlen);
+            ST(0) = sv_from_datapos(this, dlen);
         }
         else {
             ST(0) = sv_newmortal();
@@ -639,7 +650,6 @@ cdb_fetch_all(this)
         SV *keyvalue;
         SV *keysv;
         int found;
-        char *buf;
 
     CODE:
         RETVAL = newHV();
@@ -654,8 +664,8 @@ cdb_fetch_all(this)
 
             dlen = cdb_datalen(this);
 
-            SV_FROM_CDB(keyvalue, this, buf, dlen);
-            SV_FROM_CURKEY(keysv, this);
+            keyvalue = sv_from_datapos(this, dlen);
+            keysv    = sv_from_curkey(this);
 
             if (! hv_store_ent(RETVAL, keysv, keyvalue, 0)) {
                 SvREFCNT_dec(keyvalue);
@@ -684,7 +694,6 @@ cdb_multi_get(this, k)
         char *kp;
         SV *x;
         string_finder to_find;
-        char *pv;
 
     CODE:
         if (!SvOK(k)) {
@@ -706,7 +715,7 @@ cdb_multi_get(this, k)
 
             dlen = cdb_datalen(this);
 
-            SV_FROM_CDB(x, this, pv, dlen);
+            x = sv_from_datapos(this, dlen);
             av_push(RETVAL, x);
         }
 
@@ -777,7 +786,7 @@ cdb_FIRSTKEY(this)
     CODE:
         iter_start(this);
         if (iter_key(this)) {
-            SV_FROM_CURKEY(ST(0), this);
+            ST(0) = sv_from_curkey(this);
             this->curkey.hash = 0;
         } else {
             XSRETURN_UNDEF; /* empty database */
@@ -811,7 +820,7 @@ cdb_NEXTKEY(this, k)
         iter_advance(this);
         if (iter_key(this)) {
             CDB_ASSURE_CURKEY_MEM(this, this->curkey.len);
-            SV_FROM_CURKEY(ST(0), this);
+            ST(0) = sv_from_curkey(this);
             this->curkey.hash = 0;
         } else {
             iter_start(this);
