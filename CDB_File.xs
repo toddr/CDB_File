@@ -155,7 +155,7 @@ static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)
 
 static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno)); }
 
-static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno)); }
+// static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno)); }
 
 static void nomem() { croak("Out of memory!"); }
 
@@ -314,9 +314,9 @@ static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos) {
 static bool cdb_key_eq (string_finder *left, string_finder *right) {
     if( left->is_utf8 != right->is_utf8 ) {
         if(left->is_utf8)
-            return (bytes_cmp_utf8( right->pv, right->len, left->pv, left->len) == 0);
+            return (bytes_cmp_utf8( (const U8 *) right->pv, right->len, (const U8 *) left->pv,  left->len)  == 0);
         else
-            return (bytes_cmp_utf8(left->pv, left->len, right->pv, right->len) == 0);
+            return (bytes_cmp_utf8( (const U8 *) left->pv,  left->len,  (const U8 *) right->pv, right->len) == 0);
     }
 
     return (left->len == right->len) && memEQ(left->pv, right->pv, right->len);
@@ -524,10 +524,6 @@ InputStream
 cdb_handle(this)
     cdb *        this
 
-    PREINIT:
-        GV *gv;
-        char *packname;
-
     CODE:
         /* here we dup the filehandle, because perl space will try and close
            it when it goes out of scope */
@@ -563,8 +559,6 @@ cdb_TIEHASH(CLASS, filename, is_utf8=0)
 
     PREINIT:
         PerlIO *f;
-        IO *io;
-        SV *cdbp;
 
     CODE:
         Newxz(RETVAL, 1, cdb);
@@ -601,7 +595,6 @@ cdb_FETCH(this, k)
     SV  *k
 
     PREINIT:
-        PerlIO *f;
         char buf[8];
         int found;
         string_finder to_find;
@@ -685,13 +678,8 @@ cdb_multi_get(this, k)
     SV  *k
 
     PREINIT:
-        PerlIO *f;
-        char buf[8];
         int found;
-        off_t pos;
-        STRLEN klen;
-        U32 dlen, klen0;
-        char *kp;
+        U32 dlen;
         SV *x;
         string_finder to_find;
 
@@ -728,7 +716,6 @@ cdb_EXISTS(this, k)
     SV  *k
 
     PREINIT:
-        STRLEN klen;
         string_finder to_find;
 
     CODE:
@@ -752,7 +739,6 @@ cdb_DESTROY(db)
 
     PREINIT:
         cdb *this;
-        IO  *io;
 
     CODE:
         if (sv_isobject(db) && (SvTYPE(SvRV(db)) == SVt_PVMG) ) {
@@ -776,10 +762,6 @@ SV *
 cdb_FIRSTKEY(this)
     cdb *this
 
-    PREINIT:
-        char buf[8];
-        U32 klen;
-
     CODE:
         iter_start(this);
         if (iter_key(this)) {
@@ -795,11 +777,6 @@ cdb_NEXTKEY(this, k)
     SV  *k
 
     PREINIT:
-        char buf[8], *kp;
-        int found;
-        off_t pos;
-        U32 dlen, klen0;
-        STRLEN klen1;
         string_finder to_find;
 
     CODE:
@@ -835,7 +812,6 @@ cdb_new(CLASS, fn, fntemp, is_utf8=0)
 
     PREINIT:
         cdb_make *cdbmake;
-        int i;
 
     CODE:
         Newxz(cdbmake, 1, cdb_make);
@@ -883,7 +859,7 @@ cdbmaker_insert(this, ...)
 
     PREINIT:
         char *kp, *vp, packbuf[8];
-        int c, i, x;
+        int  x;
         bool is_utf8;
         STRLEN klen, vlen;
         U32 h;
