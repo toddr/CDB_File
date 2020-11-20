@@ -430,7 +430,7 @@ static int cdb_find(cdb *c, string_finder *to_find) {
 #define CDB_DEFAULT_BUFFER_LEN 256
 #define CDB_MAX_BUFFER_LEN 1024 * 64
 
-inline void CDB_ASSURE_CURKEY_MEM(cdb *c, STRLEN len) {
+static inline void CDB_ASSURE_CURKEY_MEM(cdb *c, STRLEN len) {
     STRLEN newlen;
 
     /* Nothing to do. We already have enough memory. */
