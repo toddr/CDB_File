@@ -635,7 +635,7 @@ cdb_FETCH(this, k)
         if (found) {
             U32 dlen;
             dlen = cdb_datalen(this);
-            ST(0) = sv_from_datapos(this, dlen);
+            ST(0) = sv_2mortal(sv_from_datapos(this, dlen));
         }
         else {
             ST(0) = sv_newmortal();
@@ -771,9 +771,6 @@ cdb_DESTROY(db)
             PerlIO_close(this->fh); /* close() on O_RDONLY cannot fail */
             Safefree(this);
         }
-        else {
-            croak("WTH am I?");
-        }
 
 SV *
 cdb_FIRSTKEY(this)
@@ -786,7 +783,7 @@ cdb_FIRSTKEY(this)
     CODE:
         iter_start(this);
         if (iter_key(this)) {
-            ST(0) = sv_from_curkey(this);
+            ST(0) = sv_2mortal(sv_from_curkey(this));
             this->curkey.hash = 0;
         } else {
             XSRETURN_UNDEF; /* empty database */
@@ -820,7 +817,7 @@ cdb_NEXTKEY(this, k)
         iter_advance(this);
         if (iter_key(this)) {
             CDB_ASSURE_CURKEY_MEM(this, this->curkey.len);
-            ST(0) = sv_from_curkey(this);
+            ST(0) = sv_2mortal(sv_from_curkey(this));
             this->curkey.hash = 0;
         } else {
             iter_start(this);
