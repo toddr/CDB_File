@@ -628,11 +628,13 @@ cdb_FETCH(this, k)
         if (found) {
             U32 dlen;
             dlen = cdb_datalen(this);
-            ST(0) = sv_2mortal(sv_from_datapos(this, dlen));
+            RETVAL = sv_from_datapos(this, dlen);
         }
         else {
             XSRETURN_UNDEF;
         }
+    OUTPUT:
+        RETVAL
 
 HV *
 cdb_fetch_all(this)
@@ -765,11 +767,13 @@ cdb_FIRSTKEY(this)
     CODE:
         iter_start(this);
         if (iter_key(this)) {
-            ST(0) = sv_2mortal(sv_from_curkey(this));
+            RETVAL = sv_from_curkey(this);
             this->curkey.hash = 0;
         } else {
             XSRETURN_UNDEF; /* empty database */
         }
+    OUTPUT:
+        RETVAL
 
 SV *
 cdb_NEXTKEY(this, k)
@@ -794,7 +798,7 @@ cdb_NEXTKEY(this, k)
         iter_advance(this);
         if (iter_key(this)) {
             CDB_ASSURE_CURKEY_MEM(this, this->curkey.len);
-            ST(0) = sv_2mortal(sv_from_curkey(this));
+            RETVAL = sv_from_curkey(this);
             this->curkey.hash = 0;
         } else {
             iter_start(this);
@@ -802,6 +806,8 @@ cdb_NEXTKEY(this, k)
             this->fetch_advance = 1;
             XSRETURN_UNDEF;
         }
+    OUTPUT:
+        RETVAL
 
 cdb_make *
 cdb_new(CLASS, fn, fntemp, is_utf8=0)
