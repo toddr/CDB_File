@@ -86,6 +86,10 @@ EINVAL. */
 #define cdb_datapos(c) ((c)->dpos)
 #define cdb_datalen(c) ((c)->dlen)
 
+/* This is a set of data we need when we're looking for a string.
+   For simplicity, we wrap it up in 1 struct. NOTE that pointers in this struct are not owned by the
+   struct. It is the responsibility of something else to free them usually.
+*/
 
 struct t_string_finder {
     char *pv;
@@ -105,7 +109,7 @@ struct t_cdb {
     U32 end;    /* If non zero, the file offset of the first byte of hash tables. */
     bool is_utf8; /* will we be reading in utf8 encoded data? If so we'll set SvUTF8 = true; */
     string_finder curkey; /* While iterating: the current key; */
-    STRLEN curkey_allocated;
+    STRLEN curkey_allocated; /* The length of the temp buffer used to store the key we're iterating on */
     U32 curpos; /*                  the file offset of the current record. */
     int fetch_advance; /* the kludge */
     U32 size; /* initialized if map is nonzero */
@@ -155,32 +159,47 @@ static void writeerror() { croak("Write to CDB_File failed: %s", Strerror(errno)
 
 static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno)); }
 
-// static void seekerror() { croak("Seek in CDB_File failed: %s", Strerror(errno)); }
-
 static void nomem() { croak("Out of memory!"); }
+
+/* When we find what we want to return back to the caller, we use this macro
+ * to read cdb and the length the string in the file. We then use cdb_read to
+ * pull it out of the file and put it into a SvPV.
+ */
 
 static inline SV * sv_from_datapos(cdb *c, STRLEN len) {
     SV *sv;
     char *buf;
 
     sv = newSV(len + 1 + CDB_CAN_COW);
+
+    /* This is all equivalent to sv_setpvn() but because we're reading from the mmap
+     * location we have to do it the hard way
+     */
     SvPOK_on(sv);
-    CDB_DO_COW(sv);
-    if(c->is_utf8)
-        SvUTF8_on(sv);
     buf = SvPVX(sv);
     if (cdb_read(c, buf, len, cdb_datapos(c)) == -1)
         readerror();
     buf[len] = '\0';
     SvCUR_set(sv, len);
 
+    CDB_DO_COW(sv);
+    if(c->is_utf8)
+        SvUTF8_on(sv);
+
     return sv;
 }
+
+/*
+ * Take the curkey we're currently iterating at. It is stored in the cdb struct.
+ * Give it back as a SvPV.
+ */
 
 static inline SV * sv_from_curkey (cdb *c) {
     SV* sv;
     sv = newSV(c->curkey.len + 1 + CDB_CAN_COW);
+
     sv_setpvn(sv, c->curkey.pv, c->curkey.len);
+
     CDB_DO_COW(sv);
     if(c->is_utf8)
         SvUTF8_on(sv);
@@ -271,16 +290,6 @@ static void cdb_findstart(cdb *c) {
     c->loop = 0;
 }
 
-static inline char * cdb_map_addr(cdb *c, STRLEN len, U32 pos) {
-    if(c->map == NULL) croak("Called cdb_map_addr on a system without mmap");
-
-    if ((pos > c->size) || (c->size - pos < len)) {
-        errno = EFTYPE;
-        return NULL;
-    }
-    return c->map + pos;
-}
-
 static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos) {
 
 #ifdef HASMMAP
@@ -311,8 +320,16 @@ static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos) {
     return 0;
 }
 
+/*
+ * Use perl hash logic to compare 2 strings. When one is utf8 and one is not, Perl employs special logic to
+ * attempt to compare them safely without changing either variable.
+ * Returns 1 if they match
+ * Returns 0 if they do not match.
+ */
+
 static bool cdb_key_eq (string_finder *left, string_finder *right) {
     if( left->is_utf8 != right->is_utf8 ) {
+        croak("We're not using this right now");
         if(left->is_utf8)
             return (bytes_cmp_utf8( (const U8 *) right->pv, right->len, (const U8 *) left->pv,  left->len)  == 0);
         else
@@ -322,7 +339,29 @@ static bool cdb_key_eq (string_finder *left, string_finder *right) {
     return (left->len == right->len) && memEQ(left->pv, right->pv, right->len);
 }
 
+/* cdb_map_addr makes sure our pv pointer is set to something within the mmaped file.
+ * It croaks if there is an attempt to access memory outside the scope of the mmaped file.
+ */
+
+static inline char * cdb_map_addr(cdb *c, STRLEN len, U32 pos) {
+    if(c->map == NULL) croak("Called cdb_map_addr on a system without mmap");
+
+    if ((pos > c->size) || (c->size - pos < len)) {
+        errno = EFTYPE;
+        return NULL;
+    }
+    return c->map + pos;
+}
+
 #define CDB_MATCH_BUFFER 256;
+
+/* match()
+ * Based on the current position in the file, see if the next section matches the key we're looking for.
+ * 
+ * Return 1 if we match
+ * Return -1 if we run off the end of the file.
+ * Return 0 if we do not match.
+ */
 
 static int match(cdb *c, string_finder *to_find, U32 pos) {
     string_finder nextkey;
@@ -332,6 +371,7 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     nextkey.is_utf8 = c->is_utf8;
     nextkey.len     = to_find->len;
     nextkey.pv      = cdb_map_addr(c, to_find->len, pos);
+
     return cdb_key_eq(&nextkey, to_find);
 #else
     /* If we don't have windows, then we have to read the file in*/
@@ -348,13 +388,16 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     else
         Newx(nextkey.pv, len, char);
 
-    if(cdb_read(c, nextkey.pv, len, pos) == -1)
+    if(cdb_read(c, nextkey.pv, len, pos) == -1) {
+        if (nextkey.pv != static_buffer)
+            Safefree(nextkey.pv);
         return -1;
+    }
 
-    ret = cdb_key_eq(&nextkey, to_find) ? 1 : 0
+    ret = cdb_key_eq(&nextkey, to_find);
 
     /* Only free if we had to malloc */
-    if (len >= CDB_MATCH_BUFFER)
+    if (nextkey.pv != static_buffer)
         Safefree(nextkey.pv);
 
     return ret;
@@ -371,10 +414,9 @@ static int cdb_findnext(cdb *c, string_finder *to_find) {
     c->dpos = 0;
     c->dlen = 0;
     if (!c->loop) {
-        if(to_find->hash != 0) /* hash cache (except when the value is 0) */
-            u = to_find->hash;
-        else
-            u = to_find->hash = cdb_hash(to_find->pv, to_find->len);
+        if(to_find->hash == 0) /* hash cache (except when the value is 0) */
+            to_find->hash = cdb_hash(to_find->pv, to_find->len);
+        u = to_find->hash;
 
         if (cdb_read(c,buf,8,(u << 3) & 2047) == -1)
             return -1;
@@ -406,11 +448,9 @@ static int cdb_findnext(cdb *c, string_finder *to_find) {
             uint32_unpack(buf, &next_key_len);
             if (next_key_len == to_find->len) {
                 switch(match(c, to_find, pos + 8)) {
-                    case -1:
+                    case -1: /* READ failure q */
                         return -1;
-                    case 0:
-                        return 0;
-                    default:
+                    case 1:  /* We found a match. Advance our position to the value and return 1 */
                         uint32_unpack(buf + 4,&c->dlen);
                         c->dpos = pos + 8 + next_key_len;
                         return 1;
@@ -419,7 +459,7 @@ static int cdb_findnext(cdb *c, string_finder *to_find) {
         }
     }
 
-    return 0;
+    return 0; /* We did not find anything. */
 }
 
 static int cdb_find(cdb *c, string_finder *to_find) {
@@ -449,7 +489,7 @@ static inline void CDB_ASSURE_CURKEY_MEM(cdb *c, STRLEN len) {
     else
         Newx (c->curkey.pv, newlen, char);
 
-    c->curkey.pv[newlen-1] = 0;
+    c->curkey.pv[newlen-1] = '\0';
 
     c->curkey_allocated = newlen;
 }
@@ -768,7 +808,6 @@ cdb_FIRSTKEY(this)
         iter_start(this);
         if (iter_key(this)) {
             RETVAL = sv_from_curkey(this);
-            this->curkey.hash = 0;
         } else {
             XSRETURN_UNDEF; /* empty database */
         }
@@ -797,9 +836,7 @@ cdb_NEXTKEY(this, k)
             iter_start(this);
         iter_advance(this);
         if (iter_key(this)) {
-            CDB_ASSURE_CURKEY_MEM(this, this->curkey.len);
             RETVAL = sv_from_curkey(this);
-            this->curkey.hash = 0;
         } else {
             iter_start(this);
             (void)iter_key(this); /* prepare curkey for FETCH */
