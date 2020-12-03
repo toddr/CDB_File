@@ -78,7 +78,7 @@ EINVAL. */
 #endif
 
 #if CDB_CAN_COW
-#    define CDB_DO_COW(sv) STMT_START { SvIsCOW_on(sv); CowREFCNT(sv) = 1; } STMT_END
+#    define CDB_DO_COW(sv) STMT_START { SvIsCOW_on(sv); CowREFCNT(sv) = 0; } STMT_END
 #else
 #    define CDB_DO_COW(sv)
 #endif
