@@ -311,12 +311,15 @@ static int cdb_read(cdb *c, char *buf, unsigned int len, U32 pos) {
 }
 
 static bool cdb_key_eq (string_finder *left, string_finder *right) {
+
+#if PERL_VERSION_GT(5,13,7)
     if( left->is_utf8 != right->is_utf8 ) {
         if(left->is_utf8)
             return (bytes_cmp_utf8( (const U8 *) right->pv, right->len, (const U8 *) left->pv,  left->len)  == 0);
         else
             return (bytes_cmp_utf8( (const U8 *) left->pv,  left->len,  (const U8 *) right->pv, right->len) == 0);
     }
+#endif
 
     return (left->len == right->len) && memEQ(left->pv, right->pv, right->len);
 }
@@ -554,6 +557,9 @@ cdb_TIEHASH(CLASS, filename, is_utf8=0)
         PerlIO *f;
 
     CODE:
+#if PERL_VERSION_LE(5,13,7)
+        if(SvTRUE(is_utf8)) croak("utf8 CDB_Files are not supported below Perl 5.14");
+#endif
         Newxz(RETVAL, 1, cdb);
         RETVAL->is_utf8 = SvTRUE(is_utf8);
         RETVAL->fh = f = PerlIO_open(filename, "rb");
@@ -813,6 +819,10 @@ cdb_new(CLASS, fn, fntemp, is_utf8=0)
         cdb_make *cdbmake;
 
     CODE:
+#if PERL_VERSION_LE(5,13,7)
+        if(SvTRUE(is_utf8)) croak("utf8 CDB_Files are not supported below Perl 5.14");
+#endif
+
         Newxz(cdbmake, 1, cdb_make);
         cdbmake->f = PerlIO_open(fntemp, "wb");
         cdbmake->is_utf8 = SvTRUE(is_utf8);

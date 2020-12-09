@@ -399,6 +399,8 @@ sub STORE {
 sub create(\%$$;$) {
     my ( $RHdata, $fn, $fntemp, $is_utf8 ) = @_;
 
+    die("utf8 CDB_Files are not supported below Perl 5.14") if $is_utf8 && $] < "5.014";
+
     my $cdb = CDB_File->new( $fn, $fntemp, $is_utf8 ) or return undef;
     my ( $k, $v );
     $cdb->insert(%$RHdata);
