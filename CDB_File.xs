@@ -86,11 +86,13 @@ EINVAL. */
 #define cdb_datapos(c) ((c)->dpos)
 #define cdb_datalen(c) ((c)->dlen)
 
+#define SET_FINDER_LEN(s, l) STMT_START { s.len = l; s.hash = 0; } STMT_END
 
 struct t_string_finder {
     char *pv;
     STRLEN len;
     bool is_utf8;
+    U32 hash;
 };
 typedef struct t_string_finder  string_finder;
 
@@ -332,7 +334,7 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
 #ifdef HASMMAP
     /* We don't have to allocate any memory if we're using mmap. */
     nextkey.is_utf8 = c->is_utf8;
-    nextkey.len     = to_find->len;
+    SET_FINDER_LEN(nextkey, to_find->len);
     nextkey.pv      = cdb_map_addr(c, to_find->len, pos);
     return cdb_key_eq(&nextkey, to_find);
 #else
@@ -342,7 +344,8 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     char static_buffer[CDB_MATCH_BUFFER];
 
     nextkey.is_utf8 = c->is_utf8;
-    len = nextkey.len = to_find->len;
+    SET_FINDER_LEN(nextkey, to_find->len);
+    len = nextkey.len;
 
     /* We only need to malloc a buffer if len >= 256 */
     if(len < CDB_MATCH_BUFFER)
@@ -373,7 +376,11 @@ static int cdb_findnext(cdb *c, string_finder *to_find) {
     c->dpos = 0;
     c->dlen = 0;
     if (!c->loop) {
-        u = cdb_hash(to_find->pv, to_find->len);
+        if(to_find->hash != 0) /* hash cache (except when the value is 0) */
+            u = to_find->hash;
+        else
+            u = to_find->hash = cdb_hash(to_find->pv, to_find->len);
+
 
         if (cdb_read(c,buf,8,(u << 3) & 2047) == -1)
             return -1;
@@ -461,7 +468,7 @@ static void iter_start(cdb *c) {
         readerror();
     uint32_unpack(buf, &c->end);
 
-    c->curkey.len    = 0;
+    SET_FINDER_LEN(c->curkey, 0);
     c->fetch_advance = 0;
 }
 
@@ -474,7 +481,7 @@ static int iter_key(cdb *c) {
             readerror();
         uint32_unpack(buf, &klen);
 
-        c->curkey.len  = klen;
+        SET_FINDER_LEN(c->curkey, klen);
         CDB_ASSURE_CURKEY_MEM(c, klen);
         if (cdb_read(c, c->curkey.pv, klen, c->curpos + 8) == -1)
             readerror();
@@ -497,7 +504,7 @@ static void iter_advance(cdb *c) {
 static void iter_end(cdb *c) {
     if (c->end != 0) {
         c->end = 0;
-        c->curkey.len  = 0;
+        SET_FINDER_LEN(c->curkey, 0);
     }
 }
 
@@ -604,6 +611,7 @@ cdb_FETCH(this, k)
         }
 
         to_find.pv = SvPV(k, to_find.len);
+        to_find.hash = 0;
         to_find.is_utf8 = this->is_utf8 && SvUTF8(k);
 
         /* Already advanced to the key we need. */
@@ -695,6 +703,7 @@ cdb_multi_get(this, k)
         sv_2mortal((SV *)RETVAL);
 
         to_find.pv = SvPV(k, to_find.len);
+        to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
         for (;;) {
@@ -727,6 +736,7 @@ cdb_EXISTS(this, k)
         }
 
         to_find.pv = SvPV(k, to_find.len);
+        to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
         RETVAL = cdb_find(this, &to_find);
@@ -789,6 +799,7 @@ cdb_NEXTKEY(this, k)
         }
 
         to_find.pv = SvPV(k, to_find.len);
+        to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
         /* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
