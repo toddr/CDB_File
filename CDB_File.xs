@@ -857,8 +857,8 @@ cdb_new(CLASS, fn, fntemp, option_key="", is_utf8=FALSE)
         /* Oh, for referential transparency. */
         New(0, cdbmake->fn, strlen(fn) + 1, char);
         New(0, cdbmake->fntemp, strlen(fntemp) + 1, char);
-        strncpy(cdbmake->fn, fn, strlen(fn) + 1);
-        strncpy(cdbmake->fntemp, fntemp, strlen(fntemp) + 1);
+        strcpy(cdbmake->fn, fn);
+        strcpy(cdbmake->fntemp, fntemp);
 
         CLASS = "CDB_File::Maker"; /* OK, so this is a hack */
 
