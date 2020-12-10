@@ -35,7 +35,7 @@ use CDB_File;
     my ( $db, $db_tmp ) = get_db_file_pair(1);
 
     my %a = qw(one Hello two Goodbye);
-    eval { CDB_File::create( %a, $db->filename, $db->filename ) or die "Failed to create cdb: $!" };
+    eval { CDB_File::create( %a, $db->filename, $db_tmp->filename ) or die "Failed to create cdb: $!" };
     is( "$@", '', "Create cdb" );
 
     # Test that good file works.
