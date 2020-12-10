@@ -5,7 +5,6 @@ use warnings;
 
 use Test::More;
 
-plan( skip_all => "utf8 macro support requires > 5.13.7" ) if $] < '5.013007';
 plan tests => 5;
 
 use CDB_File;
@@ -18,21 +17,27 @@ my $avar = my $latin_avar = "\306var";
 utf8::upgrade($avar);
 
 # Dang accents!
-my $leon = "L\350on";
+my $leon = my $latin_leon = "L\350on";
+my $leon_not_encoded_but_not_utf8 = "L\303\250on";
 utf8::upgrade($leon);
 
 my %a = qw(one Hello two Goodbye);
-$a{$avar} = $leon;
-eval { CDB_File::create( %a, $db->filename, $db->filename, 'utf8' => 1 ) or die "Failed to create cdb: $!" };
+eval {
+    my $t = CDB_File->new($db->filename, $db->filename, utf8 => 0 ) or die "Failed to create cdb: $!";
+    $t->insert(%a);
+    $t->insert($avar, $leon);
+    $t->insert($latin_avar, 12345);
+    $t->finish;
+};
 is( "$@", '', "Create cdb" );
 
 my %h;
 
 # Test that good file works.
-tie( %h, "CDB_File", $db->filename, 'utf8' => 1 ) and pass("Test that good file works");
-is $h{$avar},       $leon, "Access a utf8 key";
-is $h{$latin_avar}, $leon, "Access a utf8 key using its latin1 record.";
-is( utf8::is_utf8($latin_avar), '', "\$latin_avar is not converted to utf8" );
+tie( %h, "CDB_File", $db->filename, 'utf8' => 0 ) and pass("Test that good file works");
+is $h{$avar},       $leon_not_encoded_but_not_utf8, "Access a utf8 key and get back the utf8 sequence but without the utf8 flag.";
+is( utf8::is_utf8($h{$avar}), '', "\$latin_avar is does not have the utf8 flag on." );
+is $h{$latin_avar}, 12345, "Access of the latin1 key is not normalized so we get the alternate value.";
 
 exit;
 
