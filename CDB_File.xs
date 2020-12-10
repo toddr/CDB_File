@@ -92,6 +92,7 @@ struct t_string_finder {
     char *pv;
     STRLEN len;
     bool is_utf8;
+    bool pv_needs_free;
     U32 hash;
 };
 typedef struct t_string_finder  string_finder;
@@ -610,7 +611,7 @@ cdb_FETCH(this, k)
             XSRETURN_UNDEF;
         }
 
-        to_find.pv = SvPV(k, to_find.len);
+        to_find.pv = this->is_utf8 ? SvPVutf8(k, to_find.len) : SvPV(k, to_find.len);
         to_find.hash = 0;
         to_find.is_utf8 = this->is_utf8 && SvUTF8(k);
 
@@ -702,7 +703,7 @@ cdb_multi_get(this, k)
         RETVAL = newAV();
         sv_2mortal((SV *)RETVAL);
 
-        to_find.pv = SvPV(k, to_find.len);
+        to_find.pv = this->is_utf8 ? SvPVutf8(k, to_find.len) : SvPV(k, to_find.len);
         to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
@@ -735,7 +736,7 @@ cdb_EXISTS(this, k)
             XSRETURN_NO;
         }
 
-        to_find.pv = SvPV(k, to_find.len);
+        to_find.pv = this->is_utf8 ? SvPVutf8(k, to_find.len) : SvPV(k, to_find.len);
         to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
@@ -798,7 +799,7 @@ cdb_NEXTKEY(this, k)
             XSRETURN_UNDEF;
         }
 
-        to_find.pv = SvPV(k, to_find.len);
+        to_find.pv = this->is_utf8 ? SvPVutf8(k, to_find.len) : SvPV(k, to_find.len);
         to_find.hash = 0;
         to_find.is_utf8 = SvUTF8(k);
 
