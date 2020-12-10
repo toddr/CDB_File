@@ -16,7 +16,10 @@ CDB_File - Perl extension for access to cdb databases
 =head1 SYNOPSIS
 
     use CDB_File;
-    $c = tie %h, 'CDB_File', 'file.cdb' or die "tie failed: $!\n";
+    $c = tie(%h, 'CDB_File', 'file.cdb') or die "tie failed: $!\n";
+
+    # If accessing a utf8 stored CDB_File
+    $c = tie(%h, 'CDB_File', 'file.cdb', utf8 => 1) or die "tie failed: $!\n";
 
     $fh = $c->handle;
     sysseek $fh, $c->datapos, 0 or die ...;
@@ -35,6 +38,8 @@ or
     use CDB_File 'create';
     create %t, $file, "$file.$$";
 
+    # If you want to store the data in utf8 mode.
+    create %t, $file, "$file.$$", utf8 => 1;
 =head1 DESCRIPTION
 
 B<CDB_File> is a module which provides a Perl interface to Dan
@@ -80,6 +85,29 @@ C<CDB_File::create %t, $final, $tmp>.  This creates a B<cdb> file named
 C<$final> containing the contents of C<%t>.  As before,  C<$tmp> must
 name a temporary file which can be atomically renamed to C<$final>.
 C<CDB_File::create> may be imported.
+
+=head2 UTF8 support.
+
+When CDB_File was created in 1997 (prior even to Perl 5.6), Perl SVs
+didn't really deal with UTF8. In order to properly store mixed
+bytes and utf8 data in the file, we would normally need to store a bit
+for each string which clarifies the encoding of the key / values.
+This would be useful since Perl hash keys are downgraded to bytes when
+possible so as to normalize the hash key access regardless of encoding.
+
+The CDB_File format is used outside of Perl and so must maintain file
+format compatibility with those systems. As a result this module provides
+a utf8 mode which must be enabled at database generation and then later
+at read. Keys will always be stored as UTF8 strings which is the opposite
+of how Perl stores the strings. This approach had to be taken to assure no
+data corruption happened due to accidentally downgraded SVs before they
+are stored or on retrieval.
+
+You can enable utf8 mode by passing C<utf8 =E<gt> 1> to B<new>, B<tie>, or B<create>.
+All returned SVs while in this mode will be encoded in utf8.
+
+B<NOTE:> read/write of databases not stored in utf8 mode will often be
+incompatible with any non-ascii data.
 
 =head1 EXAMPLES
 
@@ -387,21 +415,21 @@ sub CLEAR {
 }
 
 sub DELETE {
-    &CLEAR;
+    goto &CLEAR;
 }
 
 sub STORE {
-    &CLEAR;
+    goto &CLEAR;
 }
 
 # Must be preloaded for the prototype.
 
-sub create(\%$$;$) {
-    my ( $RHdata, $fn, $fntemp, $is_utf8 ) = @_;
+sub create(\%$$;$$) {
+    my ( $RHdata, $fn, $fntemp, $option_key, $is_utf8 ) = @_;
 
-    die("utf8 CDB_Files are not supported below Perl 5.14") if $is_utf8 && $] < "5.014";
+    die("utf8 CDB_Files are not supported below Perl 5.14") if $option_key && $option_key eq 'utf8' && $is_utf8 && $] < "5.014";
 
-    my $cdb = CDB_File->new( $fn, $fntemp, $is_utf8 ) or return undef;
+    my $cdb = CDB_File->new( $fn, $fntemp, $option_key, $is_utf8 ) or return undef;
     my ( $k, $v );
     $cdb->insert(%$RHdata);
     $cdb->finish;

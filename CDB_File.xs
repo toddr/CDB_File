@@ -556,21 +556,27 @@ cdb_datapos(db)
         RETVAL
 
 cdb *
-cdb_TIEHASH(CLASS, filename, is_utf8=0)
+cdb_TIEHASH(CLASS, filename, option_key="", is_utf8=FALSE)
     char *CLASS
     char *filename
-    SV   *is_utf8
+    char *option_key
+    bool  is_utf8
 
     PREINIT:
         PerlIO *f;
+        bool  utf8_chosen = FALSE;
 
     CODE:
+        if(strlen(option_key) == 4 && strnEQ("utf8", option_key, 4) && is_utf8 )
 #if PERL_VERSION_LE(5,13,7)
-        if(SvTRUE(is_utf8)) croak("utf8 CDB_Files are not supported below Perl 5.14");
+            croak("utf8 CDB_Files are not supported below Perl 5.14");
+#else
+            utf8_chosen = TRUE;
 #endif
+
         Newxz(RETVAL, 1, cdb);
-        RETVAL->is_utf8 = SvTRUE(is_utf8);
         RETVAL->fh = f = PerlIO_open(filename, "rb");
+        RETVAL->is_utf8 = utf8_chosen;
 
         if (!f)
             XSRETURN_NO;
@@ -821,23 +827,28 @@ cdb_NEXTKEY(this, k)
         RETVAL
 
 cdb_make *
-cdb_new(CLASS, fn, fntemp, is_utf8=0)
+cdb_new(CLASS, fn, fntemp, option_key="", is_utf8=FALSE)
     char *        CLASS
     char *        fn
     char *        fntemp
-    SV *          is_utf8;
+    char *        option_key
+    bool          is_utf8;
 
     PREINIT:
         cdb_make *cdbmake;
+        bool  utf8_chosen = FALSE;
 
     CODE:
+        if(strlen(option_key) == 4 && strnEQ("utf8", option_key, 4) && is_utf8 )
 #if PERL_VERSION_LE(5,13,7)
-        if(SvTRUE(is_utf8)) croak("utf8 CDB_Files are not supported below Perl 5.14");
+        croak("utf8 CDB_Files are not supported below Perl 5.14");
+#else
+        utf8_chosen = TRUE;
 #endif
 
         Newxz(cdbmake, 1, cdb_make);
         cdbmake->f = PerlIO_open(fntemp, "wb");
-        cdbmake->is_utf8 = SvTRUE(is_utf8);
+        cdbmake->is_utf8 = utf8_chosen;
 
         if (!cdbmake->f) XSRETURN_UNDEF;
 
