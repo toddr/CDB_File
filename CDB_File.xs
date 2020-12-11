@@ -343,7 +343,7 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     nextkey.pv      = cdb_map_addr(c, to_find->len, pos);
     return cdb_key_eq(&nextkey, to_find);
 #else
-    /* If we don't have windows, then we have to read the file in*/
+    /* If we don't have windows, then we have to read the file in */
     int ret;
     int len;
     char static_buffer[CDB_MATCH_BUFFER];
