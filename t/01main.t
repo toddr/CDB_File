@@ -74,7 +74,7 @@ use CDB_File;
     is( $x, 'Goodbye', "Check low level access read worked" );
 
     exists( $h{'three'} );
-    note( "Datapos: " . $t->datapos . ", Datalen: " . $t->datalen );
+    note( "Datapos: ", $t->datapos, ", Datalen: ", $t->datalen );
     is( $t->datapos, 0, "Low level access on no-exist entry" );
     is( $t->datalen, 0, "Low level access on no-exist entry" );
 
