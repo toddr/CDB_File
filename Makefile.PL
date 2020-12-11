@@ -18,16 +18,19 @@ WriteMakefile(
         'File::Temp'     => 0,    # For testing
         'Devel::Peek'    => 0,    # For testing
         'Test::Warnings' => 0,    # For testing
+        'Test::Fatal'    => 0,    # For testing
     },
     dist       => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean      => { FILES    => 'CDB_File-*' },
     META_MERGE => {
         recommends     => {},
         build_requires => {
-            'Test::More'  => 0,    # For testing
-            'B::COW'      => 0,    # For testing
-            'File::Temp'  => 0,    # For testing
-            'Devel::Peek' => 0,    # For testing
+            'Test::More'     => 0,    # For testing
+            'B::COW'         => 0,    # For testing
+            'File::Temp'     => 0,    # For testing
+            'Devel::Peek'    => 0,    # For testing
+            'Test::Warnings' => 0,    # For testing
+            'Test::Fatal'    => 0,    # For testing
         },
         resources => {
             license    => 'http://dev.perl.org/licenses/',

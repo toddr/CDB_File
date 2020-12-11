@@ -7,4 +7,5 @@ on 'test' => sub {
     requires 'File::Temp'     => 0;
     requires 'Test::More'     => 0;
     requires 'Test::Warnings' => 0;
+    requires 'Test::Fatal'    => 0;
 };
