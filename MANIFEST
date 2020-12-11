@@ -12,5 +12,11 @@ ppport.h
 t/01main.t
 t/02last.t
 t/03fetchall.t
+t/clear.t
 t/cow.t
+t/empty.t
+t/lib/Helpers.pm
+t/not_utf8.t
+t/undef.t
+t/utf8.t
 typemap
