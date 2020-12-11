@@ -94,8 +94,9 @@ of how Perl stores the strings. This approach had to be taken to assure no
 data corruption happened due to accidentally downgraded SVs before they
 are stored or on retrieval.
 
-You can enable utf8 mode by passing `utf8 => 1` to **new**, **tie**, or **create**.
-All returned SVs while in this mode will be encoded in utf8.
+You can enable utf8 mode by passing `utf8 => 1` to **new**, **tie**,
+or **create**. All returned SVs while in this mode will be encoded in utf8.
+This feature is not available below 5.14 due to lack of Perl macro support.
 
 **NOTE:** read/write of databases not stored in utf8 mode will often be
 incompatible with any non-ascii data.

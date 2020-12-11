@@ -103,8 +103,9 @@ of how Perl stores the strings. This approach had to be taken to assure no
 data corruption happened due to accidentally downgraded SVs before they
 are stored or on retrieval.
 
-You can enable utf8 mode by passing C<utf8 =E<gt> 1> to B<new>, B<tie>, or B<create>.
-All returned SVs while in this mode will be encoded in utf8.
+You can enable utf8 mode by passing C<utf8 =E<gt> 1> to B<new>, B<tie>,
+or B<create>. All returned SVs while in this mode will be encoded in utf8.
+This feature is not available below 5.14 due to lack of Perl macro support.
 
 B<NOTE:> read/write of databases not stored in utf8 mode will often be
 incompatible with any non-ascii data.
@@ -429,7 +430,7 @@ sub create(\%$$;$$) {
 
     die("utf8 CDB_Files are not supported below Perl 5.14") if $option_key && $option_key eq 'utf8' && $is_utf8 && $] < "5.014";
 
-    my $cdb = CDB_File->new( $fn, $fntemp, $option_key || '', $is_utf8 || 0) or return undef;
+    my $cdb = CDB_File->new( $fn, $fntemp, $option_key || '', $is_utf8 || 0 ) or return undef;
     {
         $cdb->insert(%$RHdata);
     }
