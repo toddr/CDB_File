@@ -905,6 +905,16 @@ cdbmaker_insert(this, ...)
             k = ST(x);
             v = ST(x+1);
 
+            if(!SvOK(k)) {
+                warn("Use of uninitialized value in hash key");
+                k = sv_2mortal(newSVpv("", 0));
+            }
+
+            if(!SvOK(v)) {
+                warn("undef values cannot be stored in CDB_File. Storing an empty string instead");
+                v = sv_2mortal(newSVpv("", 0));
+            }
+
             kp = is_utf8 ? SvPVutf8(k, klen) : SvPV(k, klen);
             vp = is_utf8 ? SvPVutf8(v, vlen) : SvPV(v, vlen);
 
