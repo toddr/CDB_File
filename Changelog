@@ -1,5 +1,9 @@
 Revision history for Perl extension CDB_File.
 
+1.05 - Todd Rinaldo <toddr@cpan.org> 2020-12-11
+- Additional tests for known corner cases.
+- Use Perl_warn not warn in XS.
+
 1.04 - Todd Rinaldo <toddr@cpan.org> 2020-12-10
 - add utf8 mode for read/write of database
 - Major re-factor to remove SVs from the CDB internals. SVs are only generated at return.
