@@ -364,7 +364,7 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     ret = cdb_key_eq(&nextkey, to_find) ? 1 : 0;
 
     /* Only free if we had to malloc */
-    if (len >= CDB_MATCH_BUFFER)
+    if (nextkey.pv != static_buffer)
         Safefree(nextkey.pv);
 
     return ret;
