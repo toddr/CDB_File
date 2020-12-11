@@ -3,11 +3,14 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use Helpers;    # Local helper routines used by the test suite.
+
 use Test::More;
 
 use CDB_File;
 
-use File::Temp;
 use Devel::Peek;
 use B::COW qw{:all};
 
@@ -51,19 +54,3 @@ ok is_cow($next), "NEXTKEY value ($next) is COW'd" or Dump $next;
 is cowrefcnt($next), 1, "  cowrefcnt = 1";
 
 exit;
-
-sub get_db_file_pair {
-    my $auto_close_del = shift;
-
-    my $file = File::Temp->new( UNLINK => 1 );
-    my $tmp  = File::Temp->new( UNLINK => 1 );
-
-    if ($auto_close_del) {
-        close $file;
-        close $tmp;
-        unlink $file->filename;
-        unlink $file->filename;
-    }
-
-    return ( $file, $tmp );
-}

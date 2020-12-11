@@ -1,7 +1,10 @@
 use strict;
 use warnings;
 
-use File::Temp;
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use Helpers;    # Local helper routines used by the test suite.
+
 use Test::More tests => 113;
 use CDB_File;
 
@@ -323,19 +326,3 @@ use CDB_File;
 }
 
 exit;
-
-sub get_db_file_pair {
-    my $auto_close_del = shift;
-
-    my $file = File::Temp->new( UNLINK => 1 );
-    my $tmp  = File::Temp->new( UNLINK => 1 );
-
-    if ($auto_close_del) {
-        close $file;
-        close $tmp;
-        unlink $file->filename;
-        unlink $file->filename;
-    }
-
-    return ( $file, $tmp );
-}

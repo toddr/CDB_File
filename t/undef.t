@@ -3,13 +3,16 @@
 use strict;
 use warnings;
 
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use Helpers;    # Local helper routines used by the test suite.
+
 use Test::More;
 use Test::Warnings 0.005 ':all';
 
 plan tests => 8;
 
 use CDB_File;
-use File::Temp;
 
 {
     note "Test undef values on create.";
@@ -41,19 +44,3 @@ eval {
 
 note "exit";
 exit;
-
-sub get_db_file_pair {
-    my $auto_close_del = shift;
-
-    my $file = File::Temp->new( UNLINK => 1 );
-    my $tmp  = File::Temp->new( UNLINK => 1 );
-
-    if ($auto_close_del) {
-        close $file;
-        close $tmp;
-        unlink $file->filename;
-        unlink $file->filename;
-    }
-
-    return ( $file, $tmp );
-}
