@@ -7,7 +7,7 @@ use CDB_File;
 
 my ( $db, $db_tmp ) = get_db_file_pair(1);
 
-my $c = CDB_File->new( $db->filename, $db->filename );
+my $c = CDB_File->new( $db->filename, $db_tmp->filename );
 isa_ok( $c, 'CDB_File::Maker' );
 
 for ( 1 .. 10 ) {

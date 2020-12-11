@@ -23,7 +23,7 @@ utf8::upgrade($leon);
 
 my %a = qw(one Hello two Goodbye);
 $a{$avar} = $leon;
-eval { CDB_File::create( %a, $db->filename, $db->filename, 'utf8' => 1 ) or die "Failed to create cdb: $!" };
+eval { CDB_File::create( %a, $db->filename, $db_tmp->filename, 'utf8' => 1 ) or die "Failed to create cdb: $!" };
 is( "$@", '', "Create cdb" );
 
 my %h;

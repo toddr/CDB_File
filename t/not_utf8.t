@@ -23,7 +23,7 @@ utf8::upgrade($leon);
 
 my %a = qw(one Hello two Goodbye);
 eval {
-    my $t = CDB_File->new($db->filename, $db->filename, utf8 => 0 ) or die "Failed to create cdb: $!";
+    my $t = CDB_File->new($db->filename, $db_tmp->filename, utf8 => 0 ) or die "Failed to create cdb: $!";
     $t->insert(%a);
     $t->insert($avar, $leon);
     $t->insert($latin_avar, 12345);
