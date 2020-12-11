@@ -71,6 +71,10 @@ EINVAL. */
 }
 #endif
 
+#if PERL_VERSION_LE(5,13,7)
+  #define CDB_FILE_HAS_UTF8_HASH_MACROS
+#endif
+
 #if defined(SV_COW_REFCNT_MAX)
 #   define CDB_CAN_COW 1
 #else
@@ -568,7 +572,7 @@ cdb_TIEHASH(CLASS, filename, option_key="", is_utf8=FALSE)
 
     CODE:
         if(strlen(option_key) == 4 && strnEQ("utf8", option_key, 4) && is_utf8 )
-#if PERL_VERSION_LE(5,13,7)
+#ifdef CDB_FILE_HAS_UTF8_HASH_MACROS
             croak("utf8 CDB_Files are not supported below Perl 5.14");
 #else
             utf8_chosen = TRUE;
@@ -840,7 +844,7 @@ cdb_new(CLASS, fn, fntemp, option_key="", is_utf8=FALSE)
 
     CODE:
         if(strlen(option_key) == 4 && strnEQ("utf8", option_key, 4) && is_utf8 )
-#if PERL_VERSION_LE(5,13,7)
+#ifdef CDB_FILE_HAS_UTF8_HASH_MACROS
         croak("utf8 CDB_Files are not supported below Perl 5.14");
 #else
         utf8_chosen = TRUE;
