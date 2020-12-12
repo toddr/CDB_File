@@ -174,6 +174,15 @@ static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno));
 
 static void nomem() { croak("Out of memory!"); }
 
+static inline void _reconcile_new_sv_with_utf8 (cdb *c, SV *sv) {
+    if (c->string_mode == STRING_MODE_UTF8) {
+        if ( !sv_utf8_decode(sv) )
+            croak("Invalid UTF-8 sequence detected!");
+    }
+    else if (c->string_mode == STRING_MODE_UTF8_NAIVE)
+        SvUTF8_on(sv);
+}
+
 static inline SV * sv_from_datapos(cdb *c, STRLEN len) {
     SV *sv;
     char *buf;
@@ -182,22 +191,15 @@ static inline SV * sv_from_datapos(cdb *c, STRLEN len) {
     SvPOK_on(sv);
     CDB_DO_COW(sv);
 
-    _reconcile_new_sv_with_utf8(cdb, sv);
-
     buf = SvPVX(sv);
     if (cdb_read(c, buf, len, cdb_datapos(c)) == -1)
         readerror();
     buf[len] = '\0';
     SvCUR_set(sv, len);
 
-    return sv;
-}
+    _reconcile_new_sv_with_utf8(c, sv);
 
-static inline void _reconcile_new_sv_with_utf8 (cdb *c, SV *sv) {
-    if(c->string_mode == STRING_MODE_UTF8)
-        sv_utf8_decode(sv);
-    if(c->string_mode == STRING_MODE_UTF8_NAIVE)
-        SvUTF8_on(sv);
+    return sv;
 }
 
 static inline SV * sv_from_curkey (cdb *c) {
@@ -206,7 +208,7 @@ static inline SV * sv_from_curkey (cdb *c) {
     sv_setpvn(sv, c->curkey.pv, c->curkey.len);
     CDB_DO_COW(sv);
 
-    _reconcile_new_sv_with_utf8(cdb, sv);
+    _reconcile_new_sv_with_utf8(c, sv);
 
     return sv;
 }
@@ -357,7 +359,7 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
 
 #ifdef HASMMAP
     /* We don't have to allocate any memory if we're using mmap. */
-    nextkey.is_utf8 = c->is_utf8;
+    nextkey.is_utf8 = CDB_IS_UTF8(c);
     SET_FINDER_LEN(nextkey, to_find->len);
     nextkey.pv      = cdb_map_addr(c, to_find->len, pos);
     return cdb_key_eq(&nextkey, to_find);
@@ -532,18 +534,58 @@ static void iter_end(cdb *c) {
     }
 }
 
-#define DOWNGRADE_SV_IF_NEEDED(cdb_maybe_make, sv) ( \
-    if (cdb_maybe_make->string_mode == STRING_MODE_LATIN1 && SvUTF8(sv) && !sv_utf8_downgrade(sv)) { \
-        croak("Wide character given; byte mode requires all code points to be 0-255!"); \
-    } \
+#define DOWNGRADE_SV_IF_NEEDED(cdbthing, sv) \
+    if ((cdbthing->string_mode == STRING_MODE_LATIN1) && SvUTF8(sv) && !sv_utf8_downgrade(sv, TRUE)) { \
+        croak("Wide character given; Latin-1 mode requires all code points to be 0-255!"); \
+    }
+
+static inline void _string_finder_init( pTHX_ cdb *c, SV *k, string_finder *to_find ) {
+    DOWNGRADE_SV_IF_NEEDED(c, k);
+
+    to_find->pv = CDB_IS_UTF8(c) ? SvPVutf8(k, to_find->len) : SvPV(k, to_find->len);
+    to_find->hash = 0;
+    to_find->is_utf8 = CDB_IS_UTF8(c);
+}
+
+static string_mode_t _parse_string_mode( const char *option_key, const char *option_value ) {
+    string_mode_t string_mode;
+
+    if(strEQ("string_mode", option_key)) {
+#ifdef CDB_FILE_HAS_UTF8_HASH_MACROS
+        croak("utf8 CDB_Files are not supported below Perl 5.14");
+#else
+        if (option_value == NULL) {
+            croak("Need value for “string_mode”!");
+        }
+        else if (strEQ("utf8", option_value)) {
+            string_mode = STRING_MODE_UTF8;
+        }
+        else if (strEQ("latin1", option_value)) {
+            string_mode = STRING_MODE_LATIN1;
+        }
+        else if (strEQ("utf8_naive", option_value)) {
+            string_mode = STRING_MODE_UTF8_NAIVE;
+        }
+        else if (!strEQ("sv", option_value)) {
+            croak("Bad “string_mode”: %s", option_value);
+        }
+#endif
+    }
+
+    return string_mode;
+}
+
+#define CDB_SVPV_AFTER_POSSIBLE_DOWNGRADE(cdb_maybe_make, sv, len) ( \
+    CDB_IS_UTF8(cdb_maybe_make) \
+        ? SvPVutf8(sv, len) \
+    : (cdb_maybe_make->string_mode == STRING_MODE_LATIN1) \
+        ? SvPVbyte(sv, len) \
+    : SvPV(sv, len) \
 )
 
-static inline void _string_finder_init( pTHX_ cdb_t *cdb, SV *k, string_finder *to_find ) {
-    DOWNGRADE_SV_IF_NEEDED(this, k);
-
-    to_find.pv = CDB_IS_UTF8(this) ? SvPVutf8(k, to_find.len) : SvPV(k, to_find.len);
-    to_find.hash = 0;
-    to_find.is_utf8 = CDB_IS_UTF8(this);
+static char *_cdb_svpv( pTHX_ cdb_make *this, SV* sv, STRLEN* len ) {
+    DOWNGRADE_SV_IF_NEEDED(this, sv);
+    return CDB_SVPV_AFTER_POSSIBLE_DOWNGRADE(this, sv, *len);
 }
 
 typedef PerlIO * InputStream;
@@ -592,46 +634,17 @@ cdb_datapos(db)
     OUTPUT:
         RETVAL
 
-static string_mode_t _parse_string_mode( const char *option_key, const char *option_value ) {
-    string_mode_t string_mode;
-
-    if(strEQ("string_mode", option_key)) {
-#ifdef CDB_FILE_HAS_UTF8_HASH_MACROS
-        croak("utf8 CDB_Files are not supported below Perl 5.14");
-#else
-        if (option_value == NULL) {
-            croak("Need value for “string_mode”!");
-        }
-        else if (strEQ("utf8", option_value)) {
-            string_mode = STRING_MODE_UTF8;
-        }
-        else if (strEQ("latin1", option_value)) {
-            string_mode = STRING_MODE_LATIN1;
-        }
-        else if (strEQ("utf8_naive", option_value)) {
-            string_mode = STRING_MODE_UTF8_NAIVE;
-        }
-        else if (!strEQ("sv", option_value)) {
-            croak("Bad “string_mode”: %s", option_value);
-        }
-#endif
-    }
-
-    return string_mode;
-}
-
 cdb *
 cdb_TIEHASH(CLASS, filename, option_key="", const char *option_value=NULL)
     char *CLASS
     char *filename
     char *option_key
-    string_mode_t string_mode;
 
     PREINIT:
         PerlIO *f;
 
     CODE:
-        string_mode = _parse_string_mode(option_key, option_value);
+        string_mode_t string_mode = _parse_string_mode(option_key, option_value);
 
         Newxz(RETVAL, 1, cdb);
         RETVAL->fh = f = PerlIO_open(filename, "rb");
@@ -889,14 +902,13 @@ cdb_new(CLASS, fn, fntemp, option_key="", const char* option_value=NULL)
     char *        fn
     char *        fntemp
     char *        option_key
-    string_mode_t string_mode;
 
     PREINIT:
         cdb_make *cdbmake;
         bool  utf8_chosen = FALSE;
 
     CODE:
-        string_mode = _parse_string_mode(option_key, option_value);
+        string_mode_t string_mode = _parse_string_mode(option_key, option_value);
 
         Newxz(cdbmake, 1, cdb_make);
         cdbmake->f = PerlIO_open(fntemp, "wb");
@@ -936,16 +948,6 @@ cdbmaker_DESTROY(sv)
                 }
                 Safefree(this);
             }
-
-#define CDB_SVPV_AFTER_POSSIBLE_DOWNGRADE(cdb_maybe_make, sv, len) ( \
-   CDB_IS_UTF8(cdb_maybe_make) ? SvPVutf8(sv, len) \
-   (cdb_maybe_make->string_mode == STRING_MODE_LATIN1) ? SvPVbyte(sv, len) \
-)
-
-static char *_cdb_svpv( pTHX_ cdb_make *this, SV* sv, STRLEN* len ) {
-    DOWNGRADE_SV_IF_NEEDED(this, sv);
-    return CDB_SVPV_AFTER_POSSIBLE_DOWNGRADE(this, sv, *len);
-}
 
 void
 cdbmaker_insert(this, ...)

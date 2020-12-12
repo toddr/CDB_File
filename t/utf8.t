@@ -33,7 +33,7 @@ my %h;
 
 # Test that good file works.
 tie( %h, "CDB_File", $db->filename, string_mode => 'utf8' ) and pass("Test that good file works");
-is $h{$avar},       $leon, "Access a utf8 key";
+is $h{$avar},       $leon, "Access a utf8 key" or diag explain;
 is $h{$latin_avar}, $leon, "Access a utf8 key using its latin1 record.";
 is( utf8::is_utf8($latin_avar), '', "\$latin_avar is not converted to utf8" );
 

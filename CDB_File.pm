@@ -114,9 +114,15 @@ it’s also what you’ll have if you’ve encoded your strings for output
 prior to sending them to CDB_File.
 
 =item * C<utf8> - All strings are stored as UTF-8. Additionally, when
-reading a CDB file, all strings are also I<decoded> as UTF-8. This is
-suitable for decoded strings that you have I<not> encoded prior to
+reading a CDB file, all strings are also I<decoded> as UTF-8. Any strings
+in the CDB file that may not be valid UTF-8 will trigger an exception.
+This is suitable for decoded strings that you have I<not> encoded prior to
 sending them to CDB_File.
+
+=item * C<utf8_naive> - Just like C<utf8>, but this skips the UTF-8
+validity check. This can be marginally faster than C<utf8>, but if any
+strings are invalid UTF-8 then Perl’s internals may be corrupted. Avoid
+this mode unless you trust what you’re loading.
 
 =back
 
