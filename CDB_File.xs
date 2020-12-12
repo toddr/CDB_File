@@ -555,7 +555,7 @@ static inline void _string_finder_init( pTHX_ cdb *c, SV *k, string_finder *to_f
 }
 
 static string_mode_t _parse_string_mode( const char *option_key, const char *option_value ) {
-    string_mode_t string_mode;
+    string_mode_t string_mode = STRING_MODE_SV;
 
     if(strEQ("string_mode", option_key)) {
         if (option_value == NULL) {
