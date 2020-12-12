@@ -19,7 +19,7 @@ CDB_File - Perl extension for access to cdb databases
     $c = tie(%h, 'CDB_File', 'file.cdb') or die "tie failed: $!\n";
 
     # If accessing a utf8 stored CDB_File
-    $c = tie(%h, 'CDB_File', 'file.cdb', utf8 => 1) or die "tie failed: $!\n";
+    $c = tie(%h, 'CDB_File', 'file.cdb', string_mode => 'utf8') or die "tie failed: $!\n";
 
     $fh = $c->handle;
     sysseek $fh, $c->datapos, 0 or die ...;
@@ -38,8 +38,8 @@ or
     use CDB_File 'create';
     create %t, $file, "$file.$$";
 
-    # If you want to store the data in utf8 mode.
-    create %t, $file, "$file.$$", utf8 => 1;
+    # If you want to store the data UTF-8 encoded:
+    create %t, $file, "$file.$$", string_mode => 'utf8';
 =head1 DESCRIPTION
 
 B<CDB_File> is a module which provides a Perl interface to Dan
@@ -86,25 +86,45 @@ C<$final> containing the contents of C<%t>.  As before,  C<$tmp> must
 name a temporary file which can be atomically renamed to C<$final>.
 C<CDB_File::create> may be imported.
 
-=head2 UTF8 support.
+=head2 String Modes
 
-When CDB_File was created in 1997 (prior even to Perl 5.6), Perl SVs
-didn't really deal with UTF8. In order to properly store mixed
-bytes and utf8 data in the file, we would normally need to store a bit
-for each string which clarifies the encoding of the key / values.
-This would be useful since Perl hash keys are downgraded to bytes when
-possible so as to normalize the hash key access regardless of encoding.
+When CDB_File was created in 1997 (prior even to Perl 5.6), Perl strings
+were simple byte strings. It thus made sense, when exporting strings,
+simply to save the Perl interpreter’s internal string representation.
 
-The CDB_File format is used outside of Perl and so must maintain file
-format compatibility with those systems. As a result this module provides
-a utf8 mode which must be enabled at database generation and then later
-at read. Keys will always be stored as UTF8 strings which is the opposite
-of how Perl stores the strings. This approach had to be taken to assure no
-data corruption happened due to accidentally downgraded SVs before they
-are stored or on retrieval.
+In modern perls, though, strings are ordered arrays of code points.
+Perl doesn’t store those code points in a predictable internal encoding;
+thus, if we use the old behavior of exporting Perl’s internal
+representation, we’ll have unpredictable results.
 
-You can enable utf8 mode by passing C<utf8 =E<gt> 1> to B<new>, B<tie>,
-or B<create>. All returned SVs while in this mode will be encoded in utf8.
+Sadly, this status quo must remain our default behavior; however,
+newer code can fix the situation by passing a C<string_mode> parameter
+to B<new>, B<tie>, or B<create> with one of the following values:
+
+=over
+
+=item * C<latin1> - The same as legacy behavior, but all strings are
+stored as Latin-1. Any attempt to save a string that contains a code
+point that Latin-1 can’t accommodate—i.e., a code point that exceeds
+255—will trigger an exception.
+
+This is suitable for “byte strings”, i.e., strings whose code points
+represent raw octets. This is the default state for Perl strings, and
+it’s also what you’ll have if you’ve encoded your strings for output
+prior to sending them to CDB_File.
+
+=item * C<utf8> - All strings are stored as UTF-8. Additionally, when
+reading a CDB file, all strings are also I<decoded> as UTF-8. This is
+suitable for decoded strings that you have I<not> encoded prior to
+sending them to CDB_File.
+
+=back
+
+You can also pass a C<string_mode> of C<sv> to indicate the legacy
+behavior explicitly.
+
+Note that the above applies to hash keys as well as to values.
+
 This feature is not available below 5.14 due to lack of Perl macro support.
 
 B<NOTE:> read/write of databases not stored in utf8 mode will often be
