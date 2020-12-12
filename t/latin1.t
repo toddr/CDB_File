@@ -9,7 +9,6 @@ use Helpers;    # Local helper routines used by the test suite.
 
 use Test::More;
 
-plan( skip_all => "utf8 macro support requires > 5.13.7" ) if $] < '5.013007';
 plan tests => 2;
 
 use CDB_File;

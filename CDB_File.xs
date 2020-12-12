@@ -72,7 +72,14 @@ EINVAL. */
 #endif
 
 #if PERL_VERSION_LE(5,13,7)
-  #define CDB_FILE_HAS_UTF8_HASH_MACROS
+  #define CDB_FILE_LACKS_UTF8_HASH_MACROS
+#endif
+
+#ifdef CDB_FILE_LACKS_UTF8_HASH_MACROS
+  #define CROAK_IF_NO_UTF8_SUPPORT \
+    croak("utf8 CDB_Files are not supported below Perl 5.14");
+#else
+  #define CROAK_IF_NO_UTF8_SUPPORT
 #endif
 
 #if defined(SV_COW_REFCNT_MAX)
@@ -551,25 +558,23 @@ static string_mode_t _parse_string_mode( const char *option_key, const char *opt
     string_mode_t string_mode;
 
     if(strEQ("string_mode", option_key)) {
-#ifdef CDB_FILE_HAS_UTF8_HASH_MACROS
-        croak("utf8 CDB_Files are not supported below Perl 5.14");
-#else
         if (option_value == NULL) {
             croak("Need value for “string_mode”!");
         }
         else if (strEQ("utf8", option_value)) {
+            CROAK_IF_NO_UTF8_SUPPORT;
             string_mode = STRING_MODE_UTF8;
         }
         else if (strEQ("latin1", option_value)) {
             string_mode = STRING_MODE_LATIN1;
         }
         else if (strEQ("utf8_naive", option_value)) {
+            CROAK_IF_NO_UTF8_SUPPORT;
             string_mode = STRING_MODE_UTF8_NAIVE;
         }
         else if (!strEQ("sv", option_value)) {
             croak("Bad “string_mode”: %s", option_value);
         }
-#endif
     }
 
     return string_mode;
