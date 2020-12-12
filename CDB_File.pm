@@ -16,9 +16,11 @@ CDB_File - Perl extension for access to cdb databases
 =head1 SYNOPSIS
 
     use CDB_File;
-    $c = tie(%h, 'CDB_File', 'file.cdb') or die "tie failed: $!\n";
 
-    # If accessing a utf8 stored CDB_File
+    # If accessing a bytes/Latin-1 CDB file:
+    $c = tie(%h, 'CDB_File', 'file.cdb', string_mode => 'latin1') or die "tie failed: $!\n";
+
+    # If accessing a utf8 stored CDB file:
     $c = tie(%h, 'CDB_File', 'file.cdb', string_mode => 'utf8') or die "tie failed: $!\n";
 
     $fh = $c->handle;
@@ -27,7 +29,7 @@ CDB_File - Perl extension for access to cdb databases
     undef $c;
     untie %h;
 
-    $t = CDB_File->new('t.cdb', "t.$$") or die ...;
+    $t = CDB_File->new('t.cdb', "t.$$", string_mode => 'latin1') or die ...;
     $t->insert('key', 'value');
     $t->finish;
 
@@ -36,10 +38,11 @@ CDB_File - Perl extension for access to cdb databases
 or
 
     use CDB_File 'create';
-    create %t, $file, "$file.$$";
+    create %t, $file, "$file.$$", string_mode => 'latin1';
 
     # If you want to store the data UTF-8 encoded:
     create %t, $file, "$file.$$", string_mode => 'utf8';
+
 =head1 DESCRIPTION
 
 B<CDB_File> is a module which provides a Perl interface to Dan
@@ -97,15 +100,15 @@ Perl doesn’t store those code points in a predictable internal encoding;
 thus, if we use the old behavior of exporting Perl’s internal
 representation, we’ll have unpredictable results.
 
-Sadly, this status quo must remain our default behavior; however,
-newer code can fix the situation by passing a C<string_mode> parameter
-to B<new>, B<tie>, or B<create> with one of the following values:
+Sadly, this status quo must remain our default behavior; however, newer
+code should fix the situation by passing a C<string_mode> parameter
+to C<new()>, C<tie()>, or C<create()> with one of the following values:
 
 =over
 
 =item * C<latin1> - The same as legacy behavior, but all strings are
-stored as Latin-1. Any attempt to save a string that contains a code
-point that Latin-1 can’t accommodate—i.e., a code point that exceeds
+saved and imported as Latin-1. Any attempt to save a string that contains
+a code point that Latin-1 can’t accommodate—i.e., a code point that exceeds
 255—will trigger an exception.
 
 This is suitable for “byte strings”, i.e., strings whose code points

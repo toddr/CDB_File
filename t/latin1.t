@@ -9,7 +9,7 @@ use Helpers;    # Local helper routines used by the test suite.
 
 use Test::More;
 
-plan tests => 2;
+plan tests => 6;
 
 use CDB_File;
 
@@ -37,6 +37,35 @@ $a{'bad'} = $bad;
     eval { CDB_File::create( %a, $db->filename, $db_tmp->filename, string_mode => 'latin1' ) or die "Failed to create cdb: $!" };
     my $err = $@;
     isnt( $err, q<>, 'An error happens if we try to store a >255 code point.' );
+}
+
+{
+    my ( $db, $db_tmp ) = get_db_file_pair(1);
+
+    CDB_File::create( my %a, $db->filename, $db_tmp->filename );
+
+    my %h;
+
+    # Test that good file works.
+    ok(
+        tie( %h, "CDB_File", $db->filename, string_mode => 'latin1' ),
+        'tie() succeeds',
+    );
+
+    eval { $h{'bad'} = $bad };
+    my $err = $@;
+
+    isnt( $err, q<>, 'An error happens if we try to store a >255 code point in a tied hash.' );
+
+    eval { my $foo = $h{$bad} };
+    $err = $@;
+
+    isnt( $err, q<>, 'An error happens if we try to look up a value whose key contains a >255 code point.' );
+
+    eval { exists $h{$bad} };
+    $err = $@;
+
+    isnt( $err, q<>, 'An error happens if we try to existence-check a key contains a >255 code point.' );
 }
 
 1;
