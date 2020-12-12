@@ -364,9 +364,10 @@ static bool cdb_key_eq (string_finder *left, string_finder *right) {
 static int match(cdb *c, string_finder *to_find, U32 pos) {
     string_finder nextkey;
 
+    nextkey.is_utf8 = CDB_IS_UTF8(c);
+
 #ifdef HASMMAP
     /* We don't have to allocate any memory if we're using mmap. */
-    nextkey.is_utf8 = CDB_IS_UTF8(c);
     SET_FINDER_LEN(nextkey, to_find->len);
     nextkey.pv      = cdb_map_addr(c, to_find->len, pos);
     return cdb_key_eq(&nextkey, to_find);
@@ -376,7 +377,6 @@ static int match(cdb *c, string_finder *to_find, U32 pos) {
     int len;
     char static_buffer[CDB_MATCH_BUFFER];
 
-    nextkey.is_utf8 = c->is_utf8;
     SET_FINDER_LEN(nextkey, to_find->len);
     len = nextkey.len;
 
