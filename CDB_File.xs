@@ -182,12 +182,19 @@ static void readerror() { croak("Read of CDB_File failed: %s", Strerror(errno));
 static void nomem() { croak("Out of memory!"); }
 
 static inline void _reconcile_new_sv_with_utf8 (cdb *c, SV *sv) {
-    if (c->string_mode == STRING_MODE_UTF8) {
-        if ( !sv_utf8_decode(sv) )
-            croak("Invalid UTF-8 sequence detected!");
+    switch (c->string_mode) {
+        case STRING_MODE_UTF8:
+            if ( !sv_utf8_decode(sv) )
+                croak("Invalid UTF-8 sequence detected!");
+            break;
+
+        case STRING_MODE_UTF8_NAIVE:
+            SvUTF8_on(sv);
+            break;
+
+        default:
+            break;
     }
-    else if (c->string_mode == STRING_MODE_UTF8_NAIVE)
-        SvUTF8_on(sv);
 }
 
 static inline SV * sv_from_datapos(cdb *c, STRLEN len) {
