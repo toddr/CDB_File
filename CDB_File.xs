@@ -546,7 +546,7 @@ static void iter_end(cdb *c) {
         croak("Wide character given; Latin-1 mode requires all code points to be 0-255!"); \
     }
 
-static inline void _string_finder_init( pTHX_ cdb *c, SV *k, string_finder *to_find ) {
+static inline void _string_finder_init( cdb *c, SV *k, string_finder *to_find ) {
     DOWNGRADE_SV_IF_NEEDED(c, k);
 
     to_find->pv = CDB_IS_UTF8(c) ? SvPVutf8(k, to_find->len) : SvPV(k, to_find->len);
@@ -696,7 +696,7 @@ cdb_FETCH(this, k)
             XSRETURN_UNDEF;
         }
 
-        _string_finder_init( aTHX_ this, k, &to_find );
+        _string_finder_init( this, k, &to_find );
 
         /* Already advanced to the key we need. */
         if (this->end && cdb_key_eq(&this->curkey, &to_find)) {
@@ -787,7 +787,7 @@ cdb_multi_get(this, k)
 
         cdb_findstart(this);
 
-        _string_finder_init(aTHX_ this, k, &to_find);
+        _string_finder_init( this, k, &to_find);
 
         RETVAL = newAV();
         sv_2mortal((SV *)RETVAL);
@@ -821,7 +821,7 @@ cdb_EXISTS(this, k)
             XSRETURN_NO;
         }
 
-        _string_finder_init( aTHX_ this, k, &to_find );
+        _string_finder_init( this, k, &to_find );
 
         RETVAL = cdb_find(this, &to_find);
         if (RETVAL != 0 && RETVAL != 1)
@@ -882,7 +882,7 @@ cdb_NEXTKEY(this, k)
             XSRETURN_UNDEF;
         }
 
-        _string_finder_init( aTHX_ this, k, &to_find );
+        _string_finder_init( this, k, &to_find );
 
         /* Sometimes NEXTKEY gets called before FIRSTKEY if the hash
          * gets re-tied so we call iter_start() anyway here */

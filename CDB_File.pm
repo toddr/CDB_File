@@ -106,10 +106,13 @@ to C<new()>, C<tie()>, or C<create()> with one of the following values:
 
 =over
 
-=item * C<latin1> - The same as legacy behavior, but all strings are
+=item * C<latin1> - Similar to legacy behavior, but all strings are
 saved and imported as Latin-1. Any attempt to save a string that contains
 a code point that Latin-1 can’t accommodate—i.e., a code point that exceeds
 255—will trigger an exception.
+
+Likewise, any lookup on a string that includes a >255 code point will
+trigger an exception.
 
 This is suitable for “byte strings”, i.e., strings whose code points
 represent raw octets. This is the default state for Perl strings, and
