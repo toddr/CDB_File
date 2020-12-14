@@ -588,7 +588,7 @@ static string_mode_t _parse_string_mode( const char *option_key, const char *opt
     : SvPV(sv, len) \
 )
 
-static char *_cdb_svpv( pTHX_ cdb_make *this, SV* sv, STRLEN* len ) {
+static char *_cdb_svpv( cdb_make *this, SV* sv, STRLEN* len ) {
     DOWNGRADE_SV_IF_NEEDED(this, sv);
     return CDB_SVPV_AFTER_POSSIBLE_DOWNGRADE(this, sv, *len);
 }
@@ -981,8 +981,8 @@ cdbmaker_insert(this, ...)
                 v = sv_2mortal(newSVpv("", 0));
             }
 
-            kp = _cdb_svpv( aTHX_ this, k, &klen );
-            vp = _cdb_svpv( aTHX_ this, v, &vlen );
+            kp = _cdb_svpv( this, k, &klen );
+            vp = _cdb_svpv( this, v, &vlen );
 
             uint32_pack(packbuf, klen);
             uint32_pack(packbuf + 4, vlen);
